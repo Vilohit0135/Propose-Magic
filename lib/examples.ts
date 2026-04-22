@@ -29,6 +29,7 @@ function makeState(overrides: Partial<OrderState>): OrderState {
     isAnonymous: false,
     revealStyle: 'three_clues',
     revealDifficulty: 'easy',
+    revealContent: null,
     generatedMessage: null,
   };
   const merged = { ...base, ...overrides };

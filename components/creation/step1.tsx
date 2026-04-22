@@ -1,8 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import type { Gender, OrderState, RevealDifficulty, RevealStyle } from '@/lib/types';
 import { Field, SectionLabel } from './creation-flow';
+import { QuizEditorModal } from './quiz-editor-modal';
 
 type SetState = React.Dispatch<React.SetStateAction<OrderState>>;
 
@@ -214,12 +215,17 @@ function GamificationCard({
 }
 
 function RevealBuilder({ state, setState }: { state: OrderState; setState: SetState }) {
+  const [editorOpen, setEditorOpen] = useState(false);
   const styles: { id: RevealStyle; name: string; desc: string }[] = [
     { id: 'three_clues', name: 'Three Clues', desc: 'Write 3 hints; she guesses from 4 names' },
     { id: 'trivia', name: 'Trivia Quiz', desc: "3 multi-choice questions only she'd know" },
     { id: 'sensory', name: 'Sensory Unlock', desc: 'She picks a color, a song vibe, a memory' },
   ];
   const difficulties: RevealDifficulty[] = ['easy', 'medium', 'hard'];
+
+  const hasCustomContent =
+    state.revealContent != null && state.revealContent.style === state.revealStyle;
+
   return (
     <div style={{ marginTop: 12 }}>
       <div
@@ -239,7 +245,18 @@ function RevealBuilder({ state, setState }: { state: OrderState; setState: SetSt
         {styles.map((sOpt) => (
           <button
             key={sOpt.id}
-            onClick={() => setState((st) => ({ ...st, revealStyle: sOpt.id }))}
+            onClick={() =>
+              setState((st) => ({
+                ...st,
+                revealStyle: sOpt.id,
+                // Clear custom content when switching styles — it belongs to
+                // the previous style and would no longer be valid.
+                revealContent:
+                  st.revealContent && st.revealContent.style === sOpt.id
+                    ? st.revealContent
+                    : null,
+              }))
+            }
             style={{
               padding: 12,
               borderRadius: 10,
@@ -256,6 +273,36 @@ function RevealBuilder({ state, setState }: { state: OrderState; setState: SetSt
           </button>
         ))}
       </div>
+
+      <button
+        onClick={() => setEditorOpen(true)}
+        style={{
+          marginTop: 10,
+          width: '100%',
+          padding: '11px 14px',
+          borderRadius: 10,
+          border: '1px dashed #8b5cf6',
+          background: hasCustomContent ? '#faf4ff' : 'transparent',
+          color: '#6b5b8a',
+          fontSize: 12,
+          fontWeight: 600,
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 6,
+        }}
+      >
+        <span>{hasCustomContent ? '✓ Your custom questions' : 'Customize questions'}</span>
+        <span style={{ color: '#8b5cf6' }}>↗</span>
+      </button>
+      <div style={{ fontSize: 11, color: '#aaa', marginTop: 6, textAlign: 'center' }}>
+        {hasCustomContent
+          ? 'Tap to edit. Reset inside to go back to defaults.'
+          : 'Optional — defaults work if you skip.'}
+      </div>
+
       <div
         style={{
           fontSize: 11,
@@ -292,6 +339,16 @@ function RevealBuilder({ state, setState }: { state: OrderState; setState: SetSt
           </button>
         ))}
       </div>
+
+      {editorOpen && (
+        <QuizEditorModal
+          style={state.revealStyle}
+          current={state.revealContent}
+          fromName={state.fromName}
+          onSave={(next) => setState((st) => ({ ...st, revealContent: next }))}
+          onClose={() => setEditorOpen(false)}
+        />
+      )}
     </div>
   );
 }

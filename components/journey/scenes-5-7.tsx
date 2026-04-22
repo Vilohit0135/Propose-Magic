@@ -285,7 +285,7 @@ export function Scene5_5Reveal({
   );
 }
 
-function Silhouette({ accent, glow }: { accent: string; glow: number }) {
+export function Silhouette({ accent, glow }: { accent: string; glow: number }) {
   return (
     <svg
       width="90"
@@ -299,7 +299,7 @@ function Silhouette({ accent, glow }: { accent: string; glow: number }) {
   );
 }
 
-function NameProgress({ name, revealed }: { name: string; revealed: number }) {
+export function NameProgress({ name, revealed }: { name: string; revealed: number }) {
   const chars = name.split('');
   const perChar = Math.ceil(chars.length / 3);
   return (
@@ -336,7 +336,14 @@ function NameProgress({ name, revealed }: { name: string; revealed: number }) {
   );
 }
 
-function revealBtn(): React.CSSProperties {
+function padOrTrim(custom: string[], fallback: string[], n: number): string[] {
+  const cleaned = custom.map((s) => s.trim()).filter((s) => s.length > 0);
+  const out = cleaned.slice(0, n);
+  while (out.length < n) out.push(fallback[out.length] ?? '');
+  return out;
+}
+
+export function revealBtn(): React.CSSProperties {
   return {
     padding: '12px 16px',
     borderRadius: 10,
@@ -350,22 +357,35 @@ function revealBtn(): React.CSSProperties {
   };
 }
 
-function ThreeCluesQuiz({
+export function ThreeCluesQuiz({
   step,
   fromName,
   onAnswer,
+  customClues,
+  customDecoys,
 }: {
   step: number;
   fromName: string;
   onAnswer: (correct: boolean) => void;
+  customClues?: string[];
+  customDecoys?: string[];
 }) {
-  const clues = [
+  const defaultClues = [
     'We met somewhere it was raining',
     'You once laughed so hard you cried',
     "I've held your hand more than once",
   ];
+  const defaultDecoys = ['Rohan', 'Kabir', 'Aryan'];
+  const clues =
+    customClues && customClues.length > 0
+      ? padOrTrim(customClues, defaultClues, 3)
+      : defaultClues;
+  const decoys =
+    customDecoys && customDecoys.length > 0
+      ? padOrTrim(customDecoys, defaultDecoys, 3).filter((d) => d !== fromName)
+      : defaultDecoys;
   const [shuffled] = useState(() => {
-    const base = [fromName, 'Rohan', 'Kabir', 'Aryan'];
+    const base = [fromName, ...decoys].slice(0, 4);
     return base.sort(() => 0.5 - Math.random());
   });
   if (step < 3) {
@@ -414,7 +434,7 @@ function ThreeCluesQuiz({
   );
 }
 
-function TriviaQuiz({
+export function TriviaQuiz({
   step,
   onAnswer,
 }: {
@@ -467,7 +487,7 @@ function TriviaQuiz({
   );
 }
 
-function SensoryQuiz({
+export function SensoryQuiz({
   step,
   onAnswer,
 }: {

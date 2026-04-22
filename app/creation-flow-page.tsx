@@ -22,6 +22,7 @@ const INITIAL: OrderState = {
   isAnonymous: false,
   revealStyle: 'three_clues',
   revealDifficulty: 'easy',
+  revealContent: null,
 };
 
 export function CreationFlowPage() {

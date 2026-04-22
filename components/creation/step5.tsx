@@ -20,6 +20,7 @@ function orderStateToPayload(s: OrderState) {
     is_anonymous: s.isAnonymous,
     reveal_style: s.isAnonymous ? s.revealStyle : null,
     reveal_difficulty: s.isAnonymous ? s.revealDifficulty : null,
+    reveal_content: s.isAnonymous ? s.revealContent : null,
     package_type: s.package,
     tone: s.tone,
     template: s.template,

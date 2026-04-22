@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   DEMO_PHOTOS,
   FLOWS,
@@ -12,6 +12,7 @@ import {
 import type { OrderState, PackageId, PhotoLayoutId, VideoTreatmentId } from '@/lib/types';
 import { cardBtn, Field, SectionLabel } from './creation-flow';
 import { TemplateThumbnail } from './step2';
+import { LayoutPreviewModal } from './layout-preview-modal';
 
 type SetState = React.Dispatch<React.SetStateAction<OrderState>>;
 
@@ -125,56 +126,7 @@ export function Step3({ state, setState }: { state: OrderState; setState: SetSta
         </div>
       </div>
       {/* Layout */}
-      <div>
-        <SectionLabel>Photo Layout</SectionLabel>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          {(
-            Object.entries(PHOTO_LAYOUTS) as [
-              PhotoLayoutId,
-              (typeof PHOTO_LAYOUTS)[PhotoLayoutId],
-            ][]
-          ).map(([id, L]) => {
-            const active = state.photoLayout === id;
-            const preview =
-              state.photos.length > 0 ? state.photos : DEMO_PHOTOS.slice(0, 4);
-            return (
-              <button
-                key={id}
-                onClick={() => setState((s) => ({ ...s, photoLayout: id }))}
-                style={{
-                  padding: 0,
-                  borderRadius: 14,
-                  border: '2px solid',
-                  borderColor: active ? '#1a1a1a' : '#e0e0e0',
-                  background: '#fff',
-                  cursor: 'pointer',
-                  overflow: 'hidden',
-                  fontFamily: 'inherit',
-                  textAlign: 'left',
-                  transition: 'all 0.15s',
-                }}
-              >
-                <LayoutPreview layout={id} photos={preview} />
-                <div style={{ padding: 10 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a' }}>
-                    {L.name}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: '#888',
-                      lineHeight: 1.4,
-                      marginTop: 2,
-                    }}
-                  >
-                    {L.desc}
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <LayoutSection state={state} setState={setState} />
       {state.package === 'photos_video' && (
         <div>
           <SectionLabel>Video Treatment</SectionLabel>
@@ -368,6 +320,115 @@ export function Step4({ state, setState }: { state: OrderState; setState: SetSta
         1. We generate your page in seconds · 2. You get a shareable link · 3. Send it to{' '}
         {state.toName || 'them'} on WhatsApp
       </div>
+    </div>
+  );
+}
+
+function LayoutSection({
+  state,
+  setState,
+}: {
+  state: OrderState;
+  setState: SetState;
+}) {
+  const [previewLayout, setPreviewLayout] = useState<PhotoLayoutId | null>(null);
+  const previewPhotos =
+    state.photos.length > 0 ? state.photos : DEMO_PHOTOS.slice(0, 6);
+
+  return (
+    <div>
+      <SectionLabel>Photo Layout</SectionLabel>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        {(
+          Object.entries(PHOTO_LAYOUTS) as [
+            PhotoLayoutId,
+            (typeof PHOTO_LAYOUTS)[PhotoLayoutId],
+          ][]
+        ).map(([id, L]) => {
+          const active = state.photoLayout === id;
+          const thumbPhotos =
+            state.photos.length > 0 ? state.photos : DEMO_PHOTOS.slice(0, 4);
+          return (
+            <div
+              key={id}
+              style={{
+                position: 'relative',
+                borderRadius: 14,
+                border: '2px solid',
+                borderColor: active ? '#1a1a1a' : '#e0e0e0',
+                background: '#fff',
+                overflow: 'hidden',
+                transition: 'all 0.15s',
+              }}
+            >
+              <button
+                onClick={() => setState((s) => ({ ...s, photoLayout: id }))}
+                style={{
+                  width: '100%',
+                  padding: 0,
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  textAlign: 'left',
+                  display: 'block',
+                }}
+              >
+                <LayoutPreview layout={id} photos={thumbPhotos} />
+                <div style={{ padding: 10 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a' }}>
+                    {L.name}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: '#888',
+                      lineHeight: 1.4,
+                      marginTop: 2,
+                    }}
+                  >
+                    {L.desc}
+                  </div>
+                </div>
+              </button>
+              <button
+                onClick={() => setPreviewLayout(id)}
+                aria-label={`Preview ${L.name} live`}
+                title="See it live"
+                style={{
+                  position: 'absolute',
+                  top: 8,
+                  right: 8,
+                  width: 30,
+                  height: 30,
+                  borderRadius: 99,
+                  border: '1px solid rgba(255,255,255,0.35)',
+                  background: 'rgba(0,0,0,0.55)',
+                  color: '#fff',
+                  fontSize: 14,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backdropFilter: 'blur(4px)',
+                }}
+              >
+                ↗
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ fontSize: 11, color: '#aaa', marginTop: 8 }}>
+        Tap the card to select · Tap the ↗ to preview it live.
+      </div>
+      {previewLayout && (
+        <LayoutPreviewModal
+          layout={previewLayout}
+          photos={previewPhotos}
+          onClose={() => setPreviewLayout(null)}
+        />
+      )}
     </div>
   );
 }

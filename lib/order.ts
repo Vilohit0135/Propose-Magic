@@ -3,6 +3,7 @@ import type {
   Gender,
   PackageId,
   PhotoLayoutId,
+  RevealContent,
   RevealDifficulty,
   RevealStyle,
   TemplateId,
@@ -10,17 +11,14 @@ import type {
   VideoTreatmentId,
 } from './types';
 
+export type { RevealContent } from './types';
+
 export type OrderStatus =
   | 'PENDING'
   | 'PAID'
   | 'GENERATING'
   | 'COMPLETED'
   | 'FAILED';
-
-export type RevealContent =
-  | { style: 'three_clues'; clues: string[]; decoys: string[] }
-  | { style: 'trivia'; questions: { q: string; choices: string[]; correct: number }[] }
-  | { style: 'sensory' };
 
 export type Order = {
   id: string;

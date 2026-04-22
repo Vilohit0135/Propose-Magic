@@ -20,6 +20,7 @@ export function orderToState(o: Order): OrderState {
     isAnonymous: o.is_anonymous,
     revealStyle: o.reveal_style ?? 'three_clues',
     revealDifficulty: o.reveal_difficulty ?? 'easy',
+    revealContent: o.reveal_content,
     generatedMessage: o.generated_message,
   };
 }

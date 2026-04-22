@@ -7,7 +7,6 @@ export type ChatSection =
   | 'memories'
   | 'letter'
   | 'tension'
-  | 'reveal'
   | 'question';
 
 type Base = {
@@ -55,9 +54,10 @@ export function buildScript(state: OrderState): ChatMessage[] {
   msgs.push(text('hello-3', 'hello', 'Can I show you something?', 0));
 
   // --- B. Memories ---
-  // Flow: "Remember this?" → hero photo → "Where it all began" chapter title
-  // → gallery (sender's chosen layout). The chapter-title and gallery are
-  // silent (no typing indicator) and animate in with motion.
+  // Flow: "Remember this?" → hero photo → (if anon: reveal gate inlined here,
+  // tap the contact card to unlock identity) → "Where it all began" chapter
+  // title → gallery (sender's chosen layout). The chapter-title and gallery
+  // are silent (no typing indicator) and animate in with motion.
   if (hasMemories) {
     const pool = state.photos.length ? state.photos : DEMO_PHOTOS;
     const hero = pool[0];
@@ -65,6 +65,24 @@ export function buildScript(state: OrderState): ChatMessage[] {
 
     msgs.push(text('mem-1', 'memories', 'Remember this?', 1400));
     msgs.push(photo('mem-2', 'memories', hero, 2200));
+
+    if (state.isAnonymous) {
+      msgs.push(text('mem-reveal-1', 'memories', 'Before I show you more…', 1100));
+      msgs.push(
+        text('mem-reveal-2', 'memories', 'You need to prove you know me.', 1200),
+      );
+      msgs.push({
+        kind: 'contact-card',
+        id: 'mem-reveal-card',
+        section: 'memories',
+        from: 'system',
+        title: 'Unknown contact',
+        subtitle: 'Tap to verify identity',
+        typingMs: 600,
+        gapAfterMs: 0,
+      });
+    }
+
     msgs.push({
       kind: 'chapter-title',
       id: 'mem-title',
@@ -114,25 +132,11 @@ export function buildScript(state: OrderState): ChatMessage[] {
     });
   }
 
-  // --- D. Tension build (non-anon) / Reveal gate (anon) ---
-  if (state.isAnonymous) {
-    msgs.push(text('reveal-1', 'reveal', 'Before I ask you anything…', 1100));
-    msgs.push(text('reveal-2', 'reveal', 'You need to prove you know me.', 1200));
-    msgs.push({
-      kind: 'contact-card',
-      id: 'reveal-card',
-      section: 'reveal',
-      from: 'system',
-      title: 'Unknown contact',
-      subtitle: 'Tap to verify identity',
-      typingMs: 600,
-      gapAfterMs: 0,
-    });
-  } else {
-    msgs.push(text('tension-1', 'tension', "I don't want anything to change.", 1300));
-    msgs.push(text('tension-2', 'tension', 'I love how we are right now.', 1400));
-    msgs.push(text('tension-3', 'tension', "But I can't wait any longer.", 0));
-  }
+  // --- D. Tension build — runs for both anon and non-anon now that the
+  // reveal gate has moved into the memories section.
+  msgs.push(text('tension-1', 'tension', "I don't want anything to change.", 1300));
+  msgs.push(text('tension-2', 'tension', 'I love how we are right now.', 1400));
+  msgs.push(text('tension-3', 'tension', "But I can't wait any longer.", 0));
 
   // --- E. Question entry beat (chat exits after this) ---
   msgs.push({
@@ -153,9 +157,7 @@ export function buildScript(state: OrderState): ChatMessage[] {
 export function sectionsFor(state: OrderState): ChatSection[] {
   const out: ChatSection[] = ['hello'];
   if (state.package !== 'basic') out.push('memories');
-  out.push('letter');
-  out.push(state.isAnonymous ? 'reveal' : 'tension');
-  out.push('question');
+  out.push('letter', 'tension', 'question');
   return out;
 }
 

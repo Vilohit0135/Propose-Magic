@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { motion } from 'motion/react';
 import type { OrderState, SubFlow, TemplateDef } from '@/lib/types';
 import { withAlpha } from './bubbles';
@@ -12,7 +13,6 @@ export function YesCard({
   hearts,
   reactions,
   startTime,
-  onReset,
 }: {
   state: OrderState;
   sub: SubFlow;
@@ -20,7 +20,6 @@ export function YesCard({
   hearts: number;
   reactions: string[];
   startTime: number;
-  onReset: () => void;
 }) {
   const [showCTA, setShowCTA] = useState(false);
   const [showReply, setShowReply] = useState(false);
@@ -207,25 +206,30 @@ export function YesCard({
         )}
 
         {showReply && (
-          <motion.button
-            onClick={onReset}
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.7 }}
-            style={{
-              marginTop: 16,
-              padding: '10px 18px',
-              borderRadius: 99,
-              border: `1px dashed ${withAlpha(t.palette.text, 0.3)}`,
-              background: 'transparent',
-              color: t.palette.accent,
-              fontSize: 12,
-              cursor: 'pointer',
-              fontFamily: t.fonts.body,
-            }}
+            style={{ marginTop: 16 }}
           >
-            Now surprise them back — Create yours free →
-          </motion.button>
+            <Link
+              href="/create"
+              style={{
+                display: 'inline-block',
+                padding: '10px 18px',
+                borderRadius: 99,
+                border: `1px dashed ${withAlpha(t.palette.text, 0.3)}`,
+                background: 'transparent',
+                color: t.palette.accent,
+                fontSize: 12,
+                cursor: 'pointer',
+                fontFamily: t.fonts.body,
+                textDecoration: 'none',
+              }}
+            >
+              Now surprise them back — Create yours free →
+            </Link>
+          </motion.div>
         )}
 
         <div

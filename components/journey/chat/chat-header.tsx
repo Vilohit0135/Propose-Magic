@@ -10,7 +10,6 @@ const SECTION_LABELS: Record<ChatSection, string> = {
   memories: 'Memories',
   letter: 'Letter',
   tension: 'Almost there',
-  reveal: 'Reveal',
   question: 'Question',
 };
 

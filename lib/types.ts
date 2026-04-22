@@ -14,6 +14,14 @@ export type RevealStyle = 'three_clues' | 'trivia' | 'sensory';
 export type RevealDifficulty = 'easy' | 'medium' | 'hard';
 export type Gender = 'he' | 'she' | 'they';
 
+export type RevealContent =
+  | { style: 'three_clues'; clues: string[]; decoys: string[] }
+  | {
+      style: 'trivia';
+      questions: { q: string; choices: string[]; correct: number }[];
+    }
+  | { style: 'sensory' };
+
 export type OrderState = {
   fromName: string;
   fromGender: Gender;
@@ -32,6 +40,7 @@ export type OrderState = {
   isAnonymous: boolean;
   revealStyle: RevealStyle;
   revealDifficulty: RevealDifficulty;
+  revealContent: RevealContent | null;
   generatedMessage?: string | null;
 };
 

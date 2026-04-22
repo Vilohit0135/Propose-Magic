@@ -63,6 +63,7 @@ export async function POST(req: Request) {
 
   const reveal_style_raw = str(body.reveal_style, 20);
   const reveal_diff_raw = str(body.reveal_difficulty, 10);
+  const reveal_content = sanitizeRevealContent(body.reveal_content);
   const photo_layout_raw = str(body.photo_layout, 20);
   const video_treatment_raw = str(body.video_treatment, 30);
 
@@ -81,7 +82,7 @@ export async function POST(req: Request) {
     reveal_difficulty: ALLOWED_REVEAL_DIFFICULTIES.has(reveal_diff_raw)
       ? (reveal_diff_raw as OrderDraft['reveal_difficulty'])
       : null,
-    reveal_content: null,
+    reveal_content,
     package_type: package_type as OrderDraft['package_type'],
     tone: tone as OrderDraft['tone'],
     template: template as OrderDraft['template'],
@@ -124,4 +125,52 @@ export async function POST(req: Request) {
     short_id: order.short_id,
     status: 'GENERATING',
   });
+}
+
+// Accept a narrow RevealContent shape or null. Anything malformed → null,
+// so the receiver falls back to built-in defaults without erroring.
+function sanitizeRevealContent(
+  raw: unknown,
+): OrderDraft['reveal_content'] {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const style = typeof r.style === 'string' ? r.style : '';
+
+  if (style === 'three_clues') {
+    const clues = Array.isArray(r.clues)
+      ? r.clues
+          .filter((c): c is string => typeof c === 'string')
+          .map((c) => c.slice(0, 200))
+          .slice(0, 3)
+      : [];
+    const decoys = Array.isArray(r.decoys)
+      ? r.decoys
+          .filter((d): d is string => typeof d === 'string')
+          .map((d) => d.slice(0, 40))
+          .slice(0, 3)
+      : [];
+    if (clues.length === 0) return null;
+    return { style: 'three_clues', clues, decoys };
+  }
+
+  if (style === 'trivia') {
+    const qs = Array.isArray(r.questions) ? r.questions : [];
+    const sanitized = qs
+      .filter(
+        (q): q is { q: string; choices: string[]; correct: number } =>
+          !!q &&
+          typeof q === 'object' &&
+          typeof (q as Record<string, unknown>).q === 'string' &&
+          Array.isArray((q as Record<string, unknown>).choices) &&
+          typeof (q as Record<string, unknown>).correct === 'number',
+      )
+      .slice(0, 3);
+    if (sanitized.length === 0) return null;
+    return { style: 'trivia', questions: sanitized };
+  }
+
+  if (style === 'sensory') {
+    return { style: 'sensory' };
+  }
+  return null;
 }

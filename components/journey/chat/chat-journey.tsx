@@ -60,16 +60,21 @@ export function ChatJourney({
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
-  // When the contact-card bubble appears, open the reveal modal.
+  // The letter popup opens automatically when its typing window ends. The
+  // reveal is NOT auto-opened — the receiver must tap the contact-card bubble
+  // herself (see ContactCardBubble onTap → setRevealOpen(true) below).
   useEffect(() => {
     const last = engine.shownMessages[engine.shownMessages.length - 1];
-    if (last?.kind === 'contact-card' && !identityRevealed && !revealOpen) {
-      setRevealOpen(true);
-    }
     if (last?.kind === 'letter' && !letterShown && !letterOpen) {
       setLetterOpen(true);
     }
-  }, [engine.shownMessages, identityRevealed, revealOpen, letterShown, letterOpen]);
+  }, [engine.shownMessages, letterShown, letterOpen]);
+
+  const lastShown = engine.shownMessages[engine.shownMessages.length - 1];
+  const awaitingRevealTap =
+    state.isAnonymous &&
+    !identityRevealed &&
+    lastShown?.kind === 'contact-card';
 
   // Auto-scroll to the bottom as new bubbles appear (disabled when user is
   // reading: the onWheel/onTouchMove handler sets userScrolled=true, and
@@ -162,7 +167,7 @@ export function ChatJourney({
           {engine.isTyping && !isSilentKind(nextKind(messages, engine.shownMessages.length)) && (
             <TypingDots t={t} />
           )}
-          {engine.locked && (
+          {engine.locked && !awaitingRevealTap && (
             <SectionChip
               label="tap to see more"
               t={t}
@@ -206,7 +211,7 @@ export function ChatJourney({
           disabled={engine.complete}
         />
       </div>
-      {revealOpen && <RevealModal state={state} onDone={handleRevealDone} />}
+      {revealOpen && <RevealModal state={state} t={t} onDone={handleRevealDone} />}
       {letterMsg && (
         <LetterPopup
           open={letterOpen}
@@ -234,7 +239,6 @@ export function ChatJourney({
           hearts={hearts}
           reactions={reactions}
           startTime={startTime}
-          onReset={handleReset}
         />
       )}
     </div>
