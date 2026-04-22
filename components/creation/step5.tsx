@@ -28,6 +28,7 @@ function orderStateToPayload(s: OrderState) {
     photo_captions: [],
     photo_layout: s.package === 'basic' ? null : s.photoLayout,
     scratch_photo_index: s.scratchIndex,
+    video_url: s.package === 'photos_video' ? s.videoUrl : null,
     video_treatment: s.package === 'photos_video' ? s.videoTreatment : null,
   };
 }

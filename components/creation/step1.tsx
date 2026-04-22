@@ -79,19 +79,168 @@ export function Step1({ state, setState }: { state: OrderState; setState: SetSta
         onChange={(v) => setState((s) => ({ ...s, toName: v }))}
         placeholder="Priya"
       />
-      <Field
-        label="Your story (optional)"
-        value={state.story}
-        onChange={(v) => setState((s) => ({ ...s, story: v }))}
-        placeholder="We met on a rainy train in Goa…"
-        multiline
-        maxLength={280}
-      />
+      <StoryField state={state} setState={setState} />
 
       <GamificationCard state={state} setState={setState} flowAllowsAnon={flowAllowsAnon} />
 
       <div style={{ fontSize: 11, color: '#aaa', textAlign: 'center', marginTop: 8 }}>
         No account needed · No password · Zero friction
+      </div>
+    </div>
+  );
+}
+
+const STORY_MAX = 1500;
+
+function StoryField({
+  state,
+  setState,
+}: {
+  state: OrderState;
+  setState: SetState;
+}) {
+  const len = (state.story || '').length;
+  const ratio = Math.min(1, len / 400); // "enough" benchmark — 400 chars of story is a solid amount
+  const toFirst = state.toName.trim().split(/\s+/)[0] || 'them';
+  return (
+    <div
+      style={{
+        background: 'linear-gradient(160deg, #fff5f7 0%, #fdeaf0 100%)',
+        border: '1px solid #f3d7de',
+        borderRadius: 16,
+        padding: 18,
+        boxShadow: '0 8px 24px -20px rgba(201,116,138,0.6)',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginBottom: 8,
+        }}
+      >
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 22,
+            height: 22,
+            borderRadius: 99,
+            background: '#c9748a',
+            color: '#fff',
+            fontSize: 12,
+            fontWeight: 700,
+          }}
+        >
+          ✎
+        </span>
+        <div
+          style={{
+            fontSize: 10,
+            letterSpacing: 2,
+            textTransform: 'uppercase',
+            color: '#8b1538',
+            fontWeight: 700,
+          }}
+        >
+          Used to write the letter
+        </div>
+      </div>
+      <div
+        style={{
+          fontFamily: '"Playfair Display", serif',
+          fontStyle: 'italic',
+          fontSize: 22,
+          color: '#1a1a1a',
+          lineHeight: 1.2,
+        }}
+      >
+        Tell us your story with {toFirst}.
+      </div>
+      <div
+        style={{
+          fontSize: 13,
+          color: '#6b5560',
+          lineHeight: 1.55,
+          marginTop: 6,
+        }}
+      >
+        This is what the AI uses to draft {toFirst}&apos;s letter. The more
+        specific you get — real moments, inside jokes, what makes them them,
+        how you felt — the more it will sound like <em>you</em>, not a template.
+      </div>
+      <textarea
+        value={state.story}
+        onChange={(e) =>
+          setState((s) => ({ ...s, story: e.target.value.slice(0, STORY_MAX) }))
+        }
+        placeholder={`e.g. We met on a rainy train in Goa. She laughed at my terrible joke and I haven't stopped trying to impress her since. Her left dimple gives her away when she's holding in a smile. The night she told me about her grandmother, I knew.`}
+        rows={6}
+        style={{
+          width: '100%',
+          marginTop: 12,
+          padding: 14,
+          borderRadius: 12,
+          border: '1px solid #efc6d0',
+          fontSize: 15,
+          fontFamily: 'inherit',
+          lineHeight: 1.55,
+          resize: 'vertical',
+          minHeight: 140,
+          maxHeight: 320,
+          boxSizing: 'border-box',
+          background: '#fff',
+          color: '#1a1a1a',
+        }}
+      />
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          marginTop: 8,
+        }}
+      >
+        <div
+          style={{
+            flex: 1,
+            height: 4,
+            borderRadius: 99,
+            background: '#f6dfe5',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              width: `${ratio * 100}%`,
+              height: '100%',
+              background: ratio >= 1 ? '#8b1538' : '#c9748a',
+              transition: 'width 0.25s ease',
+            }}
+          />
+        </div>
+        <div
+          style={{
+            fontSize: 11,
+            color: '#8a6572',
+            fontVariantNumeric: 'tabular-nums',
+            minWidth: 76,
+            textAlign: 'right',
+          }}
+        >
+          {len}/{STORY_MAX}
+        </div>
+      </div>
+      <div style={{ fontSize: 11, color: '#8a6572', marginTop: 4, lineHeight: 1.5 }}>
+        {ratio < 0.25
+          ? 'Keep going — a few more details will make a big difference.'
+          : ratio < 0.6
+            ? 'Good start. Any more context you want the letter to carry?'
+            : ratio < 1
+              ? 'This will give a rich, personal letter.'
+              : 'Plenty of material — the letter will feel unmistakably yours.'}
       </div>
     </div>
   );
@@ -345,6 +494,7 @@ function RevealBuilder({ state, setState }: { state: OrderState; setState: SetSt
           style={state.revealStyle}
           current={state.revealContent}
           fromName={state.fromName}
+          story={state.story || ''}
           onSave={(next) => setState((st) => ({ ...st, revealContent: next }))}
           onClose={() => setEditorOpen(false)}
         />

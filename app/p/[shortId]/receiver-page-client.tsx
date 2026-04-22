@@ -8,10 +8,14 @@ export function ReceiverPageClient({ state }: { state: OrderState }) {
   return (
     <div
       style={{
-        position: 'relative',
-        width: '100%',
-        minHeight: '100dvh',
+        position: 'fixed',
+        inset: 0,
         overflow: 'hidden',
+        // Pin the whole receiver surface to viewport so messages growing past
+        // the fold don't enlarge the page itself — scroll stays inside the
+        // chat container. Prevents the mobile address bar from collapsing the
+        // layout mid-scroll and keeps position:absolute children from
+        // escaping to window scroll.
       }}
     >
       <ReceiverJourney state={state} />

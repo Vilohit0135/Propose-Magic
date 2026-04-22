@@ -14,13 +14,16 @@ export type RevealStyle = 'three_clues' | 'trivia' | 'sensory';
 export type RevealDifficulty = 'easy' | 'medium' | 'hard';
 export type Gender = 'he' | 'she' | 'they';
 
+export type RevealQuestion = {
+  q: string;
+  choices: string[];
+  correct: number;
+};
+
 export type RevealContent =
   | { style: 'three_clues'; clues: string[]; decoys: string[] }
-  | {
-      style: 'trivia';
-      questions: { q: string; choices: string[]; correct: number }[];
-    }
-  | { style: 'sensory' };
+  | { style: 'trivia'; questions: RevealQuestion[] }
+  | { style: 'sensory'; questions: RevealQuestion[] };
 
 export type OrderState = {
   fromName: string;
@@ -35,6 +38,7 @@ export type OrderState = {
   package: PackageId;
   photos: string[];
   photoLayout: PhotoLayoutId;
+  videoUrl: string | null;
   videoTreatment: VideoTreatmentId;
   scratchIndex: number | null;
   isAnonymous: boolean;

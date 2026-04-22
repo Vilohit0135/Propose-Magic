@@ -175,19 +175,22 @@ export function QuestionCard({
           onFocus={dodge}
           onClick={dodge}
           initial={{ opacity: 0 }}
-          animate={{ opacity: 0.8 }}
+          animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 2.1 }}
           style={{
             marginTop: 14,
-            padding: '6px 16px',
+            width: '60%',
+            padding: '12px 20px',
             borderRadius: 99,
-            border: 'none',
-            background: 'transparent',
+            border: `1px solid ${withAlpha(t.palette.text, 0.25)}`,
+            background: withAlpha(t.palette.text, 0.06),
             color: t.palette.muted,
-            fontSize: 12,
+            fontSize: 14,
+            fontWeight: 500,
             cursor: 'pointer',
             transform: `translate(${noPos.x}px, ${noPos.y}px)`,
-            transition: 'transform 0.35s cubic-bezier(.3,1.5,.5,1)',
+            transition:
+              'transform 0.35s cubic-bezier(.3,1.5,.5,1), background 0.2s, border-color 0.2s',
             fontFamily: t.fonts.body,
           }}
         >

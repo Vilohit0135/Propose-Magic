@@ -101,7 +101,7 @@ export function YesCard({
             fontStyle: 'italic',
             fontSize: 34,
             lineHeight: 1.1,
-            color: '#fff',
+            color: t.palette.text,
             textShadow: `0 0 30px ${withAlpha(t.palette.accent, 0.6)}`,
           }}
         >

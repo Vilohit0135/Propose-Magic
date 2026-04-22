@@ -7,6 +7,7 @@ import { withAlpha } from './bubbles';
 
 const SECTION_LABELS: Record<ChatSection, string> = {
   hello: 'Hello',
+  reveal: 'Reveal',
   memories: 'Memories',
   letter: 'Letter',
   tension: 'Almost there',

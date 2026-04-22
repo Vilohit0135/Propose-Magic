@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createOrder, setStatus } from '@/lib/db';
-import { getMessage } from '@/lib/mock-data';
+import { generateLetter } from '@/lib/generate-letter';
 import type { OrderDraft } from '@/lib/order';
 import { FLOWS, PACKAGES, TEMPLATES, TONES } from '@/lib/tokens';
 
@@ -101,6 +101,10 @@ export async function POST(req: Request) {
       : null,
     scratch_photo_index:
       typeof body.scratch_photo_index === 'number' ? body.scratch_photo_index : null,
+    video_url:
+      typeof body.video_url === 'string' && body.video_url.trim()
+        ? body.video_url.trim().slice(0, 2000)
+        : null,
     video_treatment: ALLOWED_VIDEO_TREATMENTS.has(video_treatment_raw)
       ? (video_treatment_raw as OrderDraft['video_treatment'])
       : null,
@@ -110,15 +114,25 @@ export async function POST(req: Request) {
 
   // No payment gate for now — kick off generation immediately.
   // Run asynchronously so the client sees GENERATING, then COMPLETED on poll.
+  // generateLetter() calls Claude; it handles its own errors and falls back to
+  // the hardcoded mock if ANTHROPIC_API_KEY is missing or the call fails.
   await setStatus(order.id, 'GENERATING');
-  setTimeout(() => {
+  void (async () => {
     try {
-      const message = getMessage(order.sub_flow, order.tone, order.is_anonymous);
-      void setStatus(order.id, 'COMPLETED', { generated_message: message });
+      const message = await generateLetter({
+        fromName: order.from_name,
+        fromGender: order.from_gender,
+        toName: order.to_name,
+        story: order.story,
+        tone: order.tone,
+        subFlow: order.sub_flow,
+        isAnonymous: order.is_anonymous,
+      });
+      await setStatus(order.id, 'COMPLETED', { generated_message: message });
     } catch {
-      void setStatus(order.id, 'FAILED');
+      await setStatus(order.id, 'FAILED');
     }
-  }, 2500);
+  })();
 
   return NextResponse.json({
     id: order.id,
@@ -153,7 +167,7 @@ function sanitizeRevealContent(
     return { style: 'three_clues', clues, decoys };
   }
 
-  if (style === 'trivia') {
+  if (style === 'trivia' || style === 'sensory') {
     const qs = Array.isArray(r.questions) ? r.questions : [];
     const sanitized = qs
       .filter(
@@ -166,11 +180,9 @@ function sanitizeRevealContent(
       )
       .slice(0, 3);
     if (sanitized.length === 0) return null;
-    return { style: 'trivia', questions: sanitized };
-  }
-
-  if (style === 'sensory') {
-    return { style: 'sensory' };
+    return style === 'trivia'
+      ? { style: 'trivia', questions: sanitized }
+      : { style: 'sensory', questions: sanitized };
   }
   return null;
 }

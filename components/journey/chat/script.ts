@@ -4,6 +4,7 @@ import type { OrderState, PhotoLayoutId, VideoTreatmentId } from '@/lib/types';
 
 export type ChatSection =
   | 'hello'
+  | 'reveal'
   | 'memories'
   | 'letter'
   | 'tension'
@@ -22,7 +23,12 @@ export type ChatMessage =
   | (Base & { kind: 'photo'; url: string })
   | (Base & { kind: 'chapter-title'; text: string })
   | (Base & { kind: 'gallery'; urls: string[]; layout: PhotoLayoutId })
-  | (Base & { kind: 'video'; url: string; treatment: VideoTreatmentId })
+  | (Base & {
+      kind: 'video';
+      url: string; // poster / still image (photo URL fallback)
+      videoUrl: string | null; // actual playable video URL, if uploaded
+      treatment: VideoTreatmentId;
+    })
   | (Base & {
       kind: 'letter';
       text: string;
@@ -53,11 +59,28 @@ export function buildScript(state: OrderState): ChatMessage[] {
   );
   msgs.push(text('hello-3', 'hello', 'Can I show you something?', 0));
 
-  // --- B. Memories ---
-  // Flow: "Remember this?" → hero photo → (if anon: reveal gate inlined here,
-  // tap the contact card to unlock identity) → "Where it all began" chapter
-  // title → gallery (sender's chosen layout). The chapter-title and gallery
-  // are silent (no typing indicator) and animate in with motion.
+  // --- B. Reveal gate (anon, always — not tied to photos) ---
+  // Lives in its own section so it fires whether the package has photos or
+  // not. On basic orders it sits between hello and letter; on photos orders
+  // it sits between hello and memories, gating all photo content.
+  if (state.isAnonymous) {
+    msgs.push(text('reveal-1', 'reveal', 'Before I show you anything…', 1100));
+    msgs.push(text('reveal-2', 'reveal', 'You need to prove you know me.', 1200));
+    msgs.push({
+      kind: 'contact-card',
+      id: 'reveal-card',
+      section: 'reveal',
+      from: 'system',
+      title: 'Unknown contact',
+      subtitle: 'Tap to verify identity',
+      typingMs: 600,
+      gapAfterMs: 0,
+    });
+  }
+
+  // --- C. Memories (photos flow only) ---
+  // For non-anon this is the first visual moment after hello. For anon it's
+  // the first thing she sees after solving the reveal quiz.
   if (hasMemories) {
     const pool = state.photos.length ? state.photos : DEMO_PHOTOS;
     const hero = pool[0];
@@ -65,24 +88,6 @@ export function buildScript(state: OrderState): ChatMessage[] {
 
     msgs.push(text('mem-1', 'memories', 'Remember this?', 1400));
     msgs.push(photo('mem-2', 'memories', hero, 2200));
-
-    if (state.isAnonymous) {
-      msgs.push(text('mem-reveal-1', 'memories', 'Before I show you more…', 1100));
-      msgs.push(
-        text('mem-reveal-2', 'memories', 'You need to prove you know me.', 1200),
-      );
-      msgs.push({
-        kind: 'contact-card',
-        id: 'mem-reveal-card',
-        section: 'memories',
-        from: 'system',
-        title: 'Unknown contact',
-        subtitle: 'Tap to verify identity',
-        typingMs: 600,
-        gapAfterMs: 0,
-      });
-    }
-
     msgs.push({
       kind: 'chapter-title',
       id: 'mem-title',
@@ -126,6 +131,7 @@ export function buildScript(state: OrderState): ChatMessage[] {
       section: 'letter',
       from: 'them',
       url: videoStill,
+      videoUrl: state.videoUrl ?? null,
       treatment: state.videoTreatment || 'letterbox',
       typingMs: 800,
       gapAfterMs: 0,
@@ -156,6 +162,7 @@ export function buildScript(state: OrderState): ChatMessage[] {
 
 export function sectionsFor(state: OrderState): ChatSection[] {
   const out: ChatSection[] = ['hello'];
+  if (state.isAnonymous) out.push('reveal');
   if (state.package !== 'basic') out.push('memories');
   out.push('letter', 'tension', 'question');
   return out;

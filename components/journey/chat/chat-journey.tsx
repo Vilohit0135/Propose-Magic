@@ -76,14 +76,31 @@ export function ChatJourney({
     !identityRevealed &&
     lastShown?.kind === 'contact-card';
 
-  // Auto-scroll to the bottom as new bubbles appear (disabled when user is
-  // reading: the onWheel/onTouchMove handler sets userScrolled=true, and
-  // tapping the section chip resets it).
+  // Auto-scroll to the bottom as new bubbles appear. We detect user intent
+  // by watching scroll position — if she's within 80px of the bottom, we
+  // assume she's keeping up and keep auto-scrolling. If she scrolls up to
+  // read back, we stop chasing until she returns.
   const [autoScroll, setAutoScroll] = useState(true);
+
   useEffect(() => {
     if (!autoScroll) return;
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    // Wait for layout so the new bubble's height is included in scrollHeight,
+    // then pin scroll to the bottom. scrollTop/scrollHeight is more reliable
+    // across browsers than scrollIntoView on a nested container.
+    const raf = requestAnimationFrame(() => {
+      const el = scrollRef.current;
+      if (!el) return;
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    });
+    return () => cancelAnimationFrame(raf);
   }, [engine.shownMessages.length, engine.isTyping, engine.locked, autoScroll]);
+
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    setAutoScroll(nearBottom);
+  };
 
   // Transition out of chat when the last message (the "{toName}…" beat) has
   // been shown and the engine reports complete.
@@ -132,8 +149,7 @@ export function ChatJourney({
       <Grain />
       <div
         ref={scrollRef}
-        onWheel={() => setAutoScroll(false)}
-        onTouchMove={() => setAutoScroll(false)}
+        onScroll={handleScroll}
         style={{
           position: 'absolute',
           inset: 0,
@@ -142,6 +158,8 @@ export function ChatJourney({
           display: 'flex',
           flexDirection: 'column',
           scrollBehavior: 'smooth',
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehavior: 'contain',
         }}
       >
         <ChatHeader
@@ -274,7 +292,14 @@ function BubbleFor({
     case 'gallery':
       return <InlineGallery urls={msg.urls} layout={msg.layout} t={t} />;
     case 'video':
-      return <VideoBubble url={msg.url} treatment={msg.treatment} t={t} />;
+      return (
+        <VideoBubble
+          url={msg.url}
+          videoUrl={msg.videoUrl}
+          treatment={msg.treatment}
+          t={t}
+        />
+      );
     case 'letter':
       // Rendered via LetterPopup overlay — no inline bubble.
       return null;

@@ -71,7 +71,7 @@ export async function createOrder(draft: OrderDraft): Promise<Order> {
     photo_captions: draft.photo_captions ?? [],
     photo_layout: draft.photo_layout,
     scratch_photo_index: draft.scratch_photo_index ?? null,
-    video_url: null,
+    video_url: draft.video_url ?? null,
     video_clip_urls: [],
     video_timestamps: null,
     video_treatment: draft.video_treatment,

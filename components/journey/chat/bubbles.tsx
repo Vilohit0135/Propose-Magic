@@ -196,10 +196,12 @@ export function PhotoAlbumBubble({
 
 export function VideoBubble({
   url,
+  videoUrl,
   treatment,
   t,
 }: {
   url: string;
+  videoUrl: string | null;
   treatment: VideoTreatmentId;
   t: TemplateDef;
 }) {
@@ -208,7 +210,22 @@ export function VideoBubble({
       ? 'sepia(0.4) contrast(1.1)'
       : treatment === 'dreamy'
         ? 'blur(2px) brightness(1.1)'
-        : 'brightness(0.85)';
+        : treatment === 'fullbleed'
+          ? 'none'
+          : 'brightness(0.85)';
+
+  const [playing, setPlaying] = useState(false);
+  const videoRef = React.useRef<HTMLVideoElement | null>(null);
+
+  const startPlayback = () => {
+    if (!videoUrl) return;
+    setPlaying(true);
+    // Small tick so the element mounts before we call play().
+    requestAnimationFrame(() => {
+      void videoRef.current?.play();
+    });
+  };
+
   return (
     <BubbleRow>
       <div
@@ -221,64 +238,91 @@ export function VideoBubble({
           maxWidth: 260,
         }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={url}
-          alt=""
-          style={{
-            display: 'block',
-            width: '100%',
-            maxHeight: 320,
-            objectFit: 'cover',
-            filter,
-          }}
-        />
-        {treatment === 'letterbox' && (
+        {playing && videoUrl ? (
+          /* eslint-disable-next-line jsx-a11y/media-has-caption */
+          <video
+            ref={videoRef}
+            src={videoUrl}
+            controls
+            playsInline
+            style={{
+              display: 'block',
+              width: '100%',
+              maxHeight: 320,
+              objectFit: 'cover',
+              filter,
+            }}
+          />
+        ) : (
           <>
-            <div style={letterboxBar(true)} />
-            <div style={letterboxBar(false)} />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={url}
+              alt=""
+              style={{
+                display: 'block',
+                width: '100%',
+                maxHeight: 320,
+                objectFit: 'cover',
+                filter,
+              }}
+            />
+            {treatment === 'letterbox' && (
+              <>
+                <div style={letterboxBar(true)} />
+                <div style={letterboxBar(false)} />
+              </>
+            )}
+            <button
+              onClick={startPlayback}
+              disabled={!videoUrl}
+              aria-label={videoUrl ? 'Play video' : 'Video preview'}
+              style={{
+                position: 'absolute',
+                inset: 0,
+                border: 'none',
+                background: 'transparent',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: videoUrl ? 'pointer' : 'default',
+              }}
+            >
+              <span
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 99,
+                  background: 'rgba(0,0,0,0.55)',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 22,
+                  border: '1px solid rgba(255,255,255,0.3)',
+                  backdropFilter: 'blur(6px)',
+                }}
+              >
+                ▶
+              </span>
+            </button>
+            {!videoUrl && (
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: 8,
+                  right: 10,
+                  fontSize: 10,
+                  letterSpacing: 1.5,
+                  color: '#fff',
+                  textShadow: '0 1px 4px rgba(0,0,0,0.8)',
+                }}
+              >
+                0:47
+              </div>
+            )}
           </>
         )}
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <div
-            style={{
-              width: 56,
-              height: 56,
-              borderRadius: 99,
-              background: 'rgba(0,0,0,0.55)',
-              color: '#fff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 22,
-              border: '1px solid rgba(255,255,255,0.3)',
-              backdropFilter: 'blur(6px)',
-            }}
-          >
-            ▶
-          </div>
-        </div>
-        <div
-          style={{
-            position: 'absolute',
-            bottom: 8,
-            right: 10,
-            fontSize: 10,
-            letterSpacing: 1.5,
-            color: '#fff',
-            textShadow: '0 1px 4px rgba(0,0,0,0.8)',
-          }}
-        >
-          0:47
-        </div>
       </div>
     </BubbleRow>
   );

@@ -15,6 +15,7 @@ export function orderToState(o: Order): OrderState {
     package: o.package_type,
     photos: o.photo_urls ?? [],
     photoLayout: o.photo_layout ?? 'polaroid',
+    videoUrl: o.video_url,
     videoTreatment: o.video_treatment ?? 'letterbox',
     scratchIndex: o.scratch_photo_index,
     isAnonymous: o.is_anonymous,

@@ -1,9 +1,18 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { DEMO_PHOTOS } from '@/lib/tokens';
+import { DEMO_PHOTOS, TEMPLATES } from '@/lib/tokens';
 import type { OrderState, SubFlow, TemplateDef } from '@/lib/types';
 import { Grain, Particles } from '../particles';
+
+// Per-template rgba helper. Duplicated from chat/bubbles.tsx on purpose so
+// this file stays independent of the chat folder.
+function alphaOf(hex: string, alpha: number): string {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return `rgba(255,255,255,${alpha})`;
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+}
 
 export function Scene5Pause({
   state,
@@ -124,6 +133,9 @@ export function Scene5_5Reveal({
   }, [phase]);
 
   const style = state.revealStyle || 'three_clues';
+  // three_clues only emits once (the final name pick); trivia/sensory emit
+  // once per question (3 total).
+  const totalNeeded = style === 'three_clues' ? 1 : 3;
   const revealed = Math.min(answers.filter(Boolean).length, state.fromName.length);
 
   const submit = (correct: boolean) => {
@@ -134,7 +146,7 @@ export function Scene5_5Reveal({
     }
     const nextAns = [...answers, true];
     setAnswers(nextAns);
-    if (nextAns.length >= 3) setTimeout(() => setPhase('reveal'), 500);
+    if (nextAns.length >= totalNeeded) setTimeout(() => setPhase('reveal'), 500);
   };
 
   return (
@@ -203,12 +215,30 @@ export function Scene5_5Reveal({
           }}
         >
           <Silhouette accent="#c0a7ff" glow={10 + revealed * 8} />
-          <NameProgress name={state.fromName} revealed={revealed} />
-          {style === 'three_clues' && (
-            <ThreeCluesQuiz step={answers.length} fromName={state.fromName} onAnswer={submit} />
+          {style !== 'three_clues' && (
+            <NameProgress name={state.fromName} revealed={revealed} />
           )}
-          {style === 'trivia' && <TriviaQuiz step={answers.length} onAnswer={submit} />}
-          {style === 'sensory' && <SensoryQuiz step={answers.length} onAnswer={submit} />}
+          {style === 'three_clues' && (
+            <ThreeCluesQuiz
+              fromName={state.fromName}
+              onAnswer={submit}
+              t={TEMPLATES.midnight}
+            />
+          )}
+          {style === 'trivia' && (
+            <TriviaQuiz
+              step={answers.length}
+              onAnswer={submit}
+              t={TEMPLATES.midnight}
+            />
+          )}
+          {style === 'sensory' && (
+            <SensoryQuiz
+              step={answers.length}
+              onAnswer={submit}
+              t={TEMPLATES.midnight}
+            />
+          )}
           {wrong && (
             <div style={{ marginTop: 12, fontSize: 13, color: '#ffb6c1' }}>
               Not quite — try again 💕
@@ -343,13 +373,13 @@ function padOrTrim(custom: string[], fallback: string[], n: number): string[] {
   return out;
 }
 
-export function revealBtn(): React.CSSProperties {
+export function revealBtn(t: TemplateDef): React.CSSProperties {
   return {
     padding: '12px 16px',
     borderRadius: 10,
-    background: 'rgba(192,167,255,0.1)',
-    border: '1px solid #5a4a88',
-    color: '#ece6ff',
+    background: alphaOf(t.palette.accent, 0.12),
+    border: `1px solid ${alphaOf(t.palette.accent, 0.4)}`,
+    color: t.palette.text,
     fontSize: 13,
     cursor: 'pointer',
     fontFamily: 'inherit',
@@ -357,18 +387,20 @@ export function revealBtn(): React.CSSProperties {
   };
 }
 
+const FALLBACK_DECOYS = ['Rohan', 'Kabir', 'Aryan', 'Arjun', 'Dev', 'Vikram', 'Nikhil'];
+
 export function ThreeCluesQuiz({
-  step,
   fromName,
   onAnswer,
   customClues,
   customDecoys,
+  t,
 }: {
-  step: number;
   fromName: string;
   onAnswer: (correct: boolean) => void;
   customClues?: string[];
   customDecoys?: string[];
+  t: TemplateDef;
 }) {
   const defaultClues = [
     'We met somewhere it was raining',
@@ -376,19 +408,58 @@ export function ThreeCluesQuiz({
     "I've held your hand more than once",
   ];
   const defaultDecoys = ['Rohan', 'Kabir', 'Aryan'];
+
   const clues =
     customClues && customClues.length > 0
       ? padOrTrim(customClues, defaultClues, 3)
       : defaultClues;
-  const decoys =
-    customDecoys && customDecoys.length > 0
-      ? padOrTrim(customDecoys, defaultDecoys, 3).filter((d) => d !== fromName)
-      : defaultDecoys;
+
+  // Build the list of 3 decoys: use custom if provided, else defaults. Filter
+  // out any that collide with the sender's name, then top up from a small
+  // fallback pool so we always present a 4-option grid.
+  const decoys = (() => {
+    const base =
+      customDecoys && customDecoys.length > 0
+        ? padOrTrim(customDecoys, defaultDecoys, 3)
+        : defaultDecoys;
+    const filtered = base
+      .map((d) => d.trim())
+      .filter((d) => d.length > 0 && d !== fromName);
+    for (const fb of FALLBACK_DECOYS) {
+      if (filtered.length >= 3) break;
+      if (fb !== fromName && !filtered.includes(fb)) filtered.push(fb);
+    }
+    return filtered.slice(0, 3);
+  })();
+
+  // Internal flow state: read each clue in sequence, then show the name
+  // picker. Only the final name pick emits onAnswer(true|false). "Next clue"
+  // is pure navigation — it does NOT signal a correct answer.
+  const [clueIdx, setClueIdx] = useState(0);
+  const [showingPicker, setShowingPicker] = useState(false);
+  const [locked, setLocked] = useState(false);
   const [shuffled] = useState(() => {
     const base = [fromName, ...decoys].slice(0, 4);
-    return base.sort(() => 0.5 - Math.random());
+    return [...base].sort(() => Math.random() - 0.5);
   });
-  if (step < 3) {
+
+  const advance = () => {
+    if (clueIdx < clues.length - 1) {
+      setClueIdx((i) => i + 1);
+    } else {
+      setShowingPicker(true);
+    }
+  };
+
+  const handlePick = (name: string) => {
+    if (locked) return;
+    const correct = name === fromName;
+    if (correct) setLocked(true);
+    onAnswer(correct);
+  };
+
+  if (!showingPicker) {
+    const isLast = clueIdx === clues.length - 1;
     return (
       <div style={{ padding: 20 }}>
         <div
@@ -396,36 +467,56 @@ export function ThreeCluesQuiz({
             fontSize: 11,
             letterSpacing: 2,
             textTransform: 'uppercase',
-            color: '#8a7fb8',
+            color: t.palette.muted,
             marginBottom: 10,
           }}
         >
-          Clue {step + 1} of 3
+          Clue {clueIdx + 1} of {clues.length}
         </div>
         <div
           style={{
-            fontFamily: '"Playfair Display", serif',
+            fontFamily: t.fonts.display,
             fontStyle: 'italic',
             fontSize: 19,
-            color: '#fff',
+            color: t.palette.text,
             lineHeight: 1.4,
             marginBottom: 20,
           }}
         >
-          &quot;{clues[step]}&quot;
+          &quot;{clues[clueIdx]}&quot;
         </div>
-        <button onClick={() => onAnswer(true)} style={revealBtn()}>
-          Next clue →
+        <button onClick={advance} style={revealBtn(t)}>
+          {isLast ? 'Show me the options →' : 'Next clue →'}
         </button>
       </div>
     );
   }
+
   return (
     <div style={{ padding: 20 }}>
-      <div style={{ fontSize: 14, color: '#c0a7ff', marginBottom: 14 }}>Who is it?</div>
+      <div
+        style={{
+          fontSize: 14,
+          color: t.palette.accent,
+          marginBottom: 14,
+          fontFamily: t.fonts.display,
+          fontStyle: 'italic',
+        }}
+      >
+        So — who is it?
+      </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         {shuffled.map((n) => (
-          <button key={n} onClick={() => onAnswer(n === fromName)} style={revealBtn()}>
+          <button
+            key={n}
+            onClick={() => handlePick(n)}
+            disabled={locked}
+            style={{
+              ...revealBtn(t),
+              cursor: locked ? 'default' : 'pointer',
+              opacity: locked ? 0.6 : 1,
+            }}
+          >
             {n}
           </button>
         ))}
@@ -437,16 +528,34 @@ export function ThreeCluesQuiz({
 export function TriviaQuiz({
   step,
   onAnswer,
+  customQuestions,
+  t,
 }: {
   step: number;
   onAnswer: (correct: boolean) => void;
+  customQuestions?: { q: string; choices: string[]; correct: number }[];
+  t: TemplateDef;
 }) {
-  const qs = [
-    { q: 'What did I wear the first time we met?', a: ['Blue shirt', 'Black hoodie', 'White tee', 'A smile'] },
-    { q: 'Our favourite song starts with…', a: ['A piano', 'A guitar riff', 'Silence', 'Rain'] },
-    { q: "What do I call you when nobody's listening?", a: ['Cutie', 'Jaan', 'Love', 'Nonsense'] },
+  const defaults: { q: string; choices: string[]; correct: number }[] = [
+    {
+      q: 'What did I wear the first time we met?',
+      choices: ['Blue shirt', 'Black hoodie', 'White tee', 'A smile'],
+      correct: 3,
+    },
+    {
+      q: 'Our favourite song starts with…',
+      choices: ['A piano', 'A guitar riff', 'Silence', 'Rain'],
+      correct: 0,
+    },
+    {
+      q: "What do I call you when nobody's listening?",
+      choices: ['Cutie', 'Jaan', 'Love', 'Nonsense'],
+      correct: 1,
+    },
   ];
-  const cur = qs[step] || qs[0];
+  const pool =
+    customQuestions && customQuestions.length === 3 ? customQuestions : defaults;
+  const cur = pool[step] || pool[0];
   return (
     <div style={{ padding: 20 }}>
       <div
@@ -454,7 +563,7 @@ export function TriviaQuiz({
           fontSize: 11,
           letterSpacing: 2,
           textTransform: 'uppercase',
-          color: '#8a7fb8',
+          color: t.palette.muted,
           marginBottom: 10,
         }}
       >
@@ -462,10 +571,10 @@ export function TriviaQuiz({
       </div>
       <div
         style={{
-          fontFamily: '"Playfair Display", serif',
+          fontFamily: t.fonts.display,
           fontStyle: 'italic',
           fontSize: 19,
-          color: '#fff',
+          color: t.palette.text,
           marginBottom: 18,
           lineHeight: 1.4,
         }}
@@ -473,11 +582,11 @@ export function TriviaQuiz({
         {cur.q}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        {cur.a.map((opt, i) => (
+        {cur.choices.map((opt, i) => (
           <button
             key={i}
-            onClick={() => onAnswer(i === 3 || i === 0)}
-            style={revealBtn()}
+            onClick={() => onAnswer(i === cur.correct)}
+            style={revealBtn(t)}
           >
             {opt}
           </button>
@@ -490,29 +599,34 @@ export function TriviaQuiz({
 export function SensoryQuiz({
   step,
   onAnswer,
+  customQuestions,
+  t,
 }: {
   step: number;
   onAnswer: (correct: boolean) => void;
+  customQuestions?: { q: string; choices: string[]; correct: number }[];
+  t: TemplateDef;
 }) {
-  const prompts: { q: string; opts: { l: string; c?: string }[] }[] = [
+  const defaults: { q: string; choices: string[]; correct: number }[] = [
     {
       q: 'Pick a colour that reminds you of love',
-      opts: [
-        { l: '', c: '#e63946' },
-        { l: '', c: '#f4a261' },
-        { l: '', c: '#c0a7ff' },
-      ],
+      choices: ['Deep red', 'Warm amber', 'Soft lavender', 'Cream'],
+      correct: 0,
     },
     {
       q: 'Pick a song that fits this moment',
-      opts: [{ l: '🎹 slow piano' }, { l: '🎸 soft strum' }, { l: '🌧️ rain sounds' }],
+      choices: ['🎹 slow piano', '🎸 soft strum', '🌧️ rain sounds', '🎻 strings'],
+      correct: 0,
     },
     {
       q: 'First memory that comes to mind?',
-      opts: [{ l: 'a late-night drive' }, { l: 'the first hug' }, { l: 'laughing too hard' }],
+      choices: ['a late-night drive', 'the first hug', 'laughing too hard', 'walking in the rain'],
+      correct: 0,
     },
   ];
-  const cur = prompts[step] || prompts[0];
+  const pool =
+    customQuestions && customQuestions.length === 3 ? customQuestions : defaults;
+  const cur = pool[step] || pool[0];
   return (
     <div style={{ padding: 20 }}>
       <div
@@ -520,7 +634,7 @@ export function SensoryQuiz({
           fontSize: 11,
           letterSpacing: 2,
           textTransform: 'uppercase',
-          color: '#8a7fb8',
+          color: t.palette.muted,
           marginBottom: 10,
         }}
       >
@@ -528,10 +642,10 @@ export function SensoryQuiz({
       </div>
       <div
         style={{
-          fontFamily: '"Playfair Display", serif',
+          fontFamily: t.fonts.display,
           fontStyle: 'italic',
           fontSize: 18,
-          color: '#fff',
+          color: t.palette.text,
           marginBottom: 18,
           lineHeight: 1.4,
         }}
@@ -539,18 +653,16 @@ export function SensoryQuiz({
         {cur.q}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {cur.opts.map((opt, i) => (
+        {cur.choices.map((opt, i) => (
           <button
             key={i}
-            onClick={() => onAnswer(true)}
+            onClick={() => onAnswer(i === cur.correct)}
             style={{
-              ...revealBtn(),
-              background: opt.c || 'rgba(192,167,255,0.12)',
-              color: opt.c ? '#fff' : undefined,
+              ...revealBtn(t),
               minHeight: 46,
             }}
           >
-            {opt.l}
+            {opt}
           </button>
         ))}
       </div>

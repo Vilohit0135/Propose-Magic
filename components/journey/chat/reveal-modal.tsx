@@ -37,6 +37,10 @@ export function RevealModal({
   }, [phase]);
 
   const style = state.revealStyle || 'three_clues';
+  // three_clues only emits a single answer (the final name pick). Trivia and
+  // sensory emit one per question (3 total). Unlock the reveal phase when
+  // the number of correct answers hits the style's threshold.
+  const totalNeeded = style === 'three_clues' ? 1 : 3;
   const revealed = Math.min(answers.filter(Boolean).length, state.fromName.length);
 
   const submit = (correct: boolean) => {
@@ -47,7 +51,7 @@ export function RevealModal({
     }
     const nextAns = [...answers, true];
     setAnswers(nextAns);
-    if (nextAns.length >= 3) setTimeout(() => setPhase('reveal'), 500);
+    if (nextAns.length >= totalNeeded) setTimeout(() => setPhase('reveal'), 500);
   };
 
   return (
@@ -213,6 +217,10 @@ function QuizPhase({
     customContent?.style === 'three_clues' ? customContent.clues : undefined;
   const customDecoys =
     customContent?.style === 'three_clues' ? customContent.decoys : undefined;
+  const customTrivia =
+    customContent?.style === 'trivia' ? customContent.questions : undefined;
+  const customSensory =
+    customContent?.style === 'sensory' ? customContent.questions : undefined;
   return (
     <div
       style={{
@@ -223,19 +231,39 @@ function QuizPhase({
       }}
     >
       <Silhouette accent={t.palette.accent} glow={10 + revealed * 8} />
-      <NameProgress name={fromName} revealed={revealed} />
+      {/* three_clues progresses in its own internal steps (read clues → pick
+          name), so its final correct answer fills the name in one beat at
+          the reveal phase. The gradual NameProgress bar only makes sense
+          for styles with multiple answers (trivia / sensory). */}
+      {style !== 'three_clues' && (
+        <NameProgress name={fromName} revealed={revealed} />
+      )}
       <div style={{ width: '100%', padding: '0 4px' }}>
         {style === 'three_clues' && (
           <ThreeCluesQuiz
-            step={step}
             fromName={fromName}
             onAnswer={onAnswer}
             customClues={customClues}
             customDecoys={customDecoys}
+            t={t}
           />
         )}
-        {style === 'trivia' && <TriviaQuiz step={step} onAnswer={onAnswer} />}
-        {style === 'sensory' && <SensoryQuiz step={step} onAnswer={onAnswer} />}
+        {style === 'trivia' && (
+          <TriviaQuiz
+            step={step}
+            onAnswer={onAnswer}
+            customQuestions={customTrivia}
+            t={t}
+          />
+        )}
+        {style === 'sensory' && (
+          <SensoryQuiz
+            step={step}
+            onAnswer={onAnswer}
+            customQuestions={customSensory}
+            t={t}
+          />
+        )}
       </div>
       {wrong && (
         <div style={{ marginTop: 10, fontSize: 13, color: '#ffb6c1' }}>
@@ -320,7 +348,7 @@ function RevealPhase({
           fontStyle: 'italic',
           fontWeight: 500,
           fontSize: 46,
-          color: '#fff',
+          color: t.palette.text,
           lineHeight: 1,
           marginTop: 6,
           textShadow: `0 0 40px ${t.palette.accent}, 0 0 80px ${withAlpha(t.palette.accent, 0.5)}`,
@@ -343,7 +371,7 @@ function RevealPhase({
           borderRadius: 99,
           background: withAlpha(t.palette.accent, 0.18),
           border: `1px solid ${t.palette.accent}`,
-          color: '#fff',
+          color: t.palette.text,
           fontSize: 13,
           letterSpacing: 1.5,
           cursor: 'pointer',

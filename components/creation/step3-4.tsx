@@ -57,124 +57,14 @@ export function Step3({ state, setState }: { state: OrderState; setState: SetSta
         </div>
       </div>
       <PackagePicker state={state} setState={setState} compact />
-      {/* Photo grid */}
-      <div>
-        <SectionLabel>Photos ({state.photos.length}/10)</SectionLabel>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-          {state.photos.map((src, i) => (
-            <div
-              key={i}
-              style={{
-                position: 'relative',
-                aspectRatio: '1',
-                borderRadius: 10,
-                overflow: 'hidden',
-                border: state.scratchIndex === i ? '2px solid #c9748a' : '1px solid #eee',
-                cursor: 'pointer',
-              }}
-              onClick={() => setState((s) => ({ ...s, scratchIndex: i }))}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={src}
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                alt=""
-              />
-              {state.scratchIndex === i && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: 4,
-                    right: 4,
-                    background: '#c9748a',
-                    color: '#fff',
-                    fontSize: 10,
-                    padding: '2px 6px',
-                    borderRadius: 99,
-                    fontWeight: 600,
-                  }}
-                >
-                  scratch
-                </div>
-              )}
-            </div>
-          ))}
-          {state.photos.length < 10 && (
-            <button
-              onClick={() =>
-                setState((s) => ({
-                  ...s,
-                  photos: [...s.photos, DEMO_PHOTOS[s.photos.length % DEMO_PHOTOS.length]],
-                }))
-              }
-              style={{
-                aspectRatio: '1',
-                border: '2px dashed #c9748a',
-                borderRadius: 10,
-                background: '#fff5f7',
-                fontSize: 24,
-                color: '#c9748a',
-                cursor: 'pointer',
-              }}
-            >
-              +
-            </button>
-          )}
-        </div>
-        <div style={{ fontSize: 11, color: '#888', marginTop: 6 }}>
-          Tap a photo to mark as scratch-to-reveal.
-        </div>
-      </div>
+      <PhotoUploadGrid state={state} setState={setState} />
       {/* Layout */}
       <LayoutSection state={state} setState={setState} />
       {state.package === 'photos_video' && (
-        <div>
-          <SectionLabel>Video Treatment</SectionLabel>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            {(
-              Object.entries(VIDEO_TREATMENTS) as [
-                VideoTreatmentId,
-                (typeof VIDEO_TREATMENTS)[VideoTreatmentId],
-              ][]
-            ).map(([id, V]) => (
-              <button
-                key={id}
-                onClick={() => setState((s) => ({ ...s, videoTreatment: id }))}
-                style={{
-                  ...cardBtn(state.videoTreatment === id),
-                  padding: 14,
-                  alignItems: 'flex-start',
-                  textAlign: 'left' as const,
-                }}
-              >
-                <div style={{ fontWeight: 600, fontSize: 13 }}>{V.name}</div>
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: state.videoTreatment === id ? '#ccc' : '#888',
-                    lineHeight: 1.4,
-                  }}
-                >
-                  {V.desc}
-                </div>
-              </button>
-            ))}
-          </div>
-          <div
-            style={{
-              marginTop: 10,
-              padding: 12,
-              borderRadius: 10,
-              background: '#f5f5f5',
-              fontSize: 12,
-              color: '#555',
-              lineHeight: 1.5,
-            }}
-          >
-            🎬 Clips Mode · Up to 5 clips mapped to scenes 1, 3, 5, 6, 7 ·{' '}
-            <span style={{ color: '#888' }}>Full video mode in v3.1</span>
-          </div>
-        </div>
+        <>
+          <VideoUploadSection state={state} setState={setState} />
+          <VideoTreatmentSection state={state} setState={setState} />
+        </>
       )}
     </div>
   );
@@ -196,13 +86,14 @@ function PackagePicker({
           <button
             key={id}
             onClick={() => {
-              const photos =
-                id === 'basic' ? [] : state.photos.length ? state.photos : DEMO_PHOTOS.slice(0, 6);
+              // Keep any photos she already uploaded when she switches packages
+              // (up/downgrade); only zero them out on basic.
+              const photos = id === 'basic' ? [] : state.photos;
               setState((s) => ({
                 ...s,
                 package: id,
                 photos,
-                scratchIndex: photos.length ? 0 : null,
+                scratchIndex: photos.length > 0 ? 0 : null,
               }));
             }}
             style={{
@@ -324,6 +215,279 @@ export function Step4({ state, setState }: { state: OrderState; setState: SetSta
   );
 }
 
+function PhotoUploadGrid({
+  state,
+  setState,
+}: {
+  state: OrderState;
+  setState: SetState;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number }>({
+    done: 0,
+    total: 0,
+  });
+  const [error, setError] = useState<string | null>(null);
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const uploadOne = async (file: File): Promise<string> => {
+    const signResp = await fetch('/api/cloudinary/sign', { method: 'POST' });
+    if (!signResp.ok) {
+      if (signResp.status === 503) {
+        throw new Error(
+          'Cloudinary is not configured yet. Ask the developer to set the keys.',
+        );
+      }
+      throw new Error('sign_failed');
+    }
+    const sign = (await signResp.json()) as {
+      cloudName: string;
+      apiKey: string;
+      timestamp: number;
+      folder: string;
+      signature: string;
+    };
+
+    const form = new FormData();
+    form.append('file', file);
+    form.append('api_key', sign.apiKey);
+    form.append('timestamp', String(sign.timestamp));
+    form.append('folder', sign.folder);
+    form.append('signature', sign.signature);
+
+    const uploadResp = await fetch(
+      `https://api.cloudinary.com/v1_1/${sign.cloudName}/image/upload`,
+      { method: 'POST', body: form },
+    );
+    if (!uploadResp.ok) throw new Error('upload_failed');
+    const data = (await uploadResp.json()) as { secure_url?: string };
+    if (!data.secure_url) throw new Error('no_url');
+    return data.secure_url;
+  };
+
+  const handleFiles = async (files: FileList) => {
+    setError(null);
+    const remaining = Math.max(0, 10 - state.photos.length);
+    if (remaining === 0) {
+      setError('You already have 10 photos. Remove one to add another.');
+      return;
+    }
+
+    const asArray = Array.from(files);
+    const skippedTooLarge: string[] = [];
+    const skippedWrongType: string[] = [];
+
+    const valid: File[] = asArray.filter((f) => {
+      if (!f.type.startsWith('image/')) {
+        skippedWrongType.push(f.name);
+        return false;
+      }
+      if (f.size > 10 * 1024 * 1024) {
+        skippedTooLarge.push(f.name);
+        return false;
+      }
+      return true;
+    });
+
+    const clipped = valid.slice(0, remaining);
+    const overflow = valid.length - clipped.length;
+
+    if (clipped.length === 0) {
+      if (skippedTooLarge.length)
+        setError(`${skippedTooLarge.length} photo(s) were over 10MB.`);
+      else if (skippedWrongType.length)
+        setError(`${skippedWrongType.length} file(s) were not images.`);
+      else setError('Nothing to upload.');
+      return;
+    }
+
+    setUploading(true);
+    setProgress({ done: 0, total: clipped.length });
+
+    const uploadedUrls: string[] = [];
+    let firstFailureMessage: string | null = null;
+
+    for (const file of clipped) {
+      try {
+        const url = await uploadOne(file);
+        uploadedUrls.push(url);
+        // Commit each upload as it completes so partial failures keep whatever
+        // did land — user doesn't lose earlier work if a later one fails.
+        setState((s) => ({
+          ...s,
+          photos: [...s.photos, url],
+          scratchIndex: s.scratchIndex ?? 0,
+        }));
+      } catch (err) {
+        console.error('[photo upload]', err);
+        if (!firstFailureMessage) {
+          firstFailureMessage =
+            err instanceof Error && err.message.includes('Cloudinary')
+              ? err.message
+              : 'One or more photos failed to upload.';
+        }
+      }
+      setProgress((p) => ({ ...p, done: p.done + 1 }));
+    }
+
+    setUploading(false);
+    setProgress({ done: 0, total: 0 });
+
+    const problems: string[] = [];
+    if (firstFailureMessage) problems.push(firstFailureMessage);
+    if (skippedTooLarge.length)
+      problems.push(`${skippedTooLarge.length} skipped (over 10MB)`);
+    if (skippedWrongType.length)
+      problems.push(`${skippedWrongType.length} skipped (not an image)`);
+    if (overflow > 0)
+      problems.push(`${overflow} skipped (hit 10-photo limit)`);
+    if (problems.length) setError(problems.join(' · '));
+  };
+
+  return (
+    <div>
+      <SectionLabel>Photos ({state.photos.length}/10)</SectionLabel>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+        {state.photos.map((src, i) => (
+          <div
+            key={i}
+            style={{
+              position: 'relative',
+              aspectRatio: '1',
+              borderRadius: 10,
+              overflow: 'hidden',
+              border:
+                state.scratchIndex === i ? '2px solid #c9748a' : '1px solid #eee',
+              cursor: 'pointer',
+            }}
+            onClick={() => setState((s) => ({ ...s, scratchIndex: i }))}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={src}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              alt=""
+            />
+            {state.scratchIndex === i && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 4,
+                  right: 4,
+                  background: '#c9748a',
+                  color: '#fff',
+                  fontSize: 10,
+                  padding: '2px 6px',
+                  borderRadius: 99,
+                  fontWeight: 600,
+                }}
+              >
+                scratch
+              </div>
+            )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setState((s) => ({
+                  ...s,
+                  photos: s.photos.filter((_, j) => j !== i),
+                  scratchIndex:
+                    s.scratchIndex === i
+                      ? s.photos.length > 1
+                        ? 0
+                        : null
+                      : s.scratchIndex,
+                }));
+              }}
+              aria-label="Remove photo"
+              style={{
+                position: 'absolute',
+                top: 4,
+                left: 4,
+                width: 20,
+                height: 20,
+                borderRadius: 99,
+                border: 'none',
+                background: 'rgba(0,0,0,0.55)',
+                color: '#fff',
+                fontSize: 12,
+                cursor: 'pointer',
+                lineHeight: 1,
+              }}
+            >
+              ×
+            </button>
+          </div>
+        ))}
+        {state.photos.length < 10 && (
+          <>
+            <button
+              onClick={() => inputRef.current?.click()}
+              disabled={uploading}
+              style={{
+                aspectRatio: '1',
+                border: '2px dashed #c9748a',
+                borderRadius: 10,
+                background: uploading ? '#f9e5eb' : '#fff5f7',
+                fontSize: 22,
+                color: '#c9748a',
+                cursor: uploading ? 'wait' : 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 2,
+                fontFamily: 'inherit',
+              }}
+            >
+              <span style={{ fontSize: 22, lineHeight: 1 }}>
+                {uploading ? '…' : '+'}
+              </span>
+              <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: 0.5 }}>
+                {uploading
+                  ? `${progress.done}/${progress.total}`
+                  : 'ADD PHOTOS'}
+              </span>
+            </button>
+            <input
+              ref={inputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                  void handleFiles(e.target.files);
+                }
+                e.target.value = '';
+              }}
+            />
+          </>
+        )}
+      </div>
+      {error && (
+        <div
+          style={{
+            marginTop: 8,
+            padding: 10,
+            borderRadius: 8,
+            background: '#fff3f3',
+            border: '1px solid #ffd0d0',
+            color: '#a33',
+            fontSize: 12,
+          }}
+        >
+          {error}
+        </div>
+      )}
+      <div style={{ fontSize: 11, color: '#888', marginTop: 6 }}>
+        Tap + to pick one or many photos at once. Max 10 · 10MB each · tap a
+        photo to mark as scratch-to-reveal.
+      </div>
+    </div>
+  );
+}
+
 function LayoutSection({
   state,
   setState,
@@ -431,6 +595,462 @@ function LayoutSection({
       )}
     </div>
   );
+}
+
+function VideoUploadSection({
+  state,
+  setState,
+}: {
+  state: OrderState;
+  setState: SetState;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [progressPct, setProgressPct] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const MAX_MB = 50;
+  const MAX_BYTES = MAX_MB * 1024 * 1024;
+
+  const handleFile = async (file: File) => {
+    setError(null);
+    if (!file.type.startsWith('video/')) {
+      setError('That file is not a video.');
+      return;
+    }
+    if (file.size > MAX_BYTES) {
+      setError(`Video is over ${MAX_MB}MB. Pick a shorter clip or compress first.`);
+      return;
+    }
+
+    setUploading(true);
+    setProgressPct(0);
+    try {
+      const signResp = await fetch('/api/cloudinary/sign', { method: 'POST' });
+      if (!signResp.ok) {
+        if (signResp.status === 503) {
+          throw new Error(
+            'Cloudinary is not configured yet. Ask the developer to set the keys.',
+          );
+        }
+        throw new Error('sign_failed');
+      }
+      const sign = (await signResp.json()) as {
+        cloudName: string;
+        apiKey: string;
+        timestamp: number;
+        folder: string;
+        signature: string;
+      };
+
+      // XHR for upload progress — fetch doesn't expose it natively.
+      const secureUrl: string = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open(
+          'POST',
+          `https://api.cloudinary.com/v1_1/${sign.cloudName}/video/upload`,
+        );
+        xhr.upload.onprogress = (ev) => {
+          if (ev.lengthComputable) {
+            setProgressPct(Math.round((ev.loaded / ev.total) * 100));
+          }
+        };
+        xhr.onload = () => {
+          if (xhr.status < 200 || xhr.status >= 300) {
+            reject(new Error(`upload_failed_${xhr.status}`));
+            return;
+          }
+          try {
+            const data = JSON.parse(xhr.responseText) as { secure_url?: string };
+            if (!data.secure_url) {
+              reject(new Error('no_url'));
+              return;
+            }
+            resolve(data.secure_url);
+          } catch {
+            reject(new Error('bad_response'));
+          }
+        };
+        xhr.onerror = () => reject(new Error('network_error'));
+
+        const form = new FormData();
+        form.append('file', file);
+        form.append('api_key', sign.apiKey);
+        form.append('timestamp', String(sign.timestamp));
+        form.append('folder', sign.folder);
+        form.append('signature', sign.signature);
+        xhr.send(form);
+      });
+
+      setState((s) => ({ ...s, videoUrl: secureUrl }));
+    } catch (err) {
+      console.error('[video upload]', err);
+      setError(
+        err instanceof Error && err.message.includes('Cloudinary')
+          ? err.message
+          : 'Upload failed. Please try again.',
+      );
+    } finally {
+      setUploading(false);
+      setProgressPct(0);
+    }
+  };
+
+  const clearVideo = () => {
+    setState((s) => ({ ...s, videoUrl: null }));
+  };
+
+  return (
+    <div>
+      <SectionLabel>Your Video</SectionLabel>
+      <VideoTemplateHint state={state} />
+      {state.videoUrl ? (
+        <div
+          style={{
+            position: 'relative',
+            borderRadius: 12,
+            overflow: 'hidden',
+            background: '#000',
+            border: '1px solid #eee',
+            aspectRatio: '16 / 9',
+          }}
+        >
+          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+          <video
+            src={state.videoUrl}
+            controls
+            playsInline
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              display: 'block',
+            }}
+          />
+          <button
+            onClick={clearVideo}
+            aria-label="Remove video"
+            style={{
+              position: 'absolute',
+              top: 8,
+              right: 8,
+              width: 28,
+              height: 28,
+              borderRadius: 99,
+              border: 'none',
+              background: 'rgba(0,0,0,0.6)',
+              color: '#fff',
+              fontSize: 14,
+              cursor: 'pointer',
+              backdropFilter: 'blur(4px)',
+            }}
+          >
+            ×
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => inputRef.current?.click()}
+          disabled={uploading}
+          style={{
+            width: '100%',
+            aspectRatio: '16 / 9',
+            border: '2px dashed #c9748a',
+            borderRadius: 12,
+            background: uploading ? '#f9e5eb' : '#fff5f7',
+            color: '#c9748a',
+            cursor: uploading ? 'wait' : 'pointer',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 4,
+            fontFamily: 'inherit',
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
+          {uploading ? (
+            <>
+              <div style={{ fontSize: 22 }}>…</div>
+              <div style={{ fontSize: 11, fontWeight: 600 }}>
+                Uploading {progressPct}%
+              </div>
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  bottom: 0,
+                  height: 3,
+                  width: `${progressPct}%`,
+                  background: '#c9748a',
+                  transition: 'width 0.2s',
+                }}
+              />
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: 28 }}>▶</div>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>ADD YOUR VIDEO</div>
+              <div style={{ fontSize: 11, opacity: 0.75 }}>
+                MP4 recommended · up to {MAX_MB}MB
+              </div>
+            </>
+          )}
+        </button>
+      )}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="video/*"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void handleFile(file);
+          e.target.value = '';
+        }}
+      />
+      {error && (
+        <div
+          style={{
+            marginTop: 8,
+            padding: 10,
+            borderRadius: 8,
+            background: '#fff3f3',
+            border: '1px solid #ffd0d0',
+            color: '#a33',
+            fontSize: 12,
+          }}
+        >
+          {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VideoTemplateHint({ state }: { state: OrderState }) {
+  const tmpl = TEMPLATES[state.template];
+  return (
+    <div
+      style={{
+        display: 'flex',
+        gap: 14,
+        padding: 12,
+        marginBottom: 10,
+        borderRadius: 12,
+        background: '#faf7f2',
+        border: '1px solid #ece6db',
+      }}
+    >
+      <div
+        style={{
+          flexShrink: 0,
+          width: 96,
+          height: 54,
+          borderRadius: 8,
+          background: `linear-gradient(160deg, ${tmpl.palette.bg2}, ${tmpl.palette.bg})`,
+          position: 'relative',
+          overflow: 'hidden',
+          border: `1px solid ${tmpl.palette.accent}55`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+        aria-hidden
+      >
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 99,
+            background: 'rgba(0,0,0,0.45)',
+            color: '#fff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 14,
+            border: '1px solid rgba(255,255,255,0.25)',
+          }}
+        >
+          ▶
+        </div>
+        <div
+          style={{
+            position: 'absolute',
+            top: 4,
+            left: 6,
+            fontSize: 7,
+            letterSpacing: 1,
+            textTransform: 'uppercase',
+            color: tmpl.palette.accent,
+            fontWeight: 700,
+          }}
+        >
+          In chat
+        </div>
+      </div>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a' }}>
+          How your video shows up
+        </div>
+        <div
+          style={{
+            fontSize: 12,
+            color: '#666',
+            marginTop: 3,
+            lineHeight: 1.5,
+          }}
+        >
+          Arrives mid-chat as a chat bubble she can tap to play. One long clip
+          works best (under 60 seconds). Style of frame set by the treatment
+          you pick below.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VideoTreatmentSection({
+  state,
+  setState,
+}: {
+  state: OrderState;
+  setState: SetState;
+}) {
+  const preview =
+    state.photos.length > 0 ? state.photos : DEMO_PHOTOS.slice(0, 1);
+  return (
+    <div>
+      <SectionLabel>Video Treatment</SectionLabel>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        {(
+          Object.entries(VIDEO_TREATMENTS) as [
+            VideoTreatmentId,
+            (typeof VIDEO_TREATMENTS)[VideoTreatmentId],
+          ][]
+        ).map(([id, V]) => {
+          const active = state.videoTreatment === id;
+          return (
+            <button
+              key={id}
+              onClick={() => setState((s) => ({ ...s, videoTreatment: id }))}
+              style={{
+                padding: 0,
+                borderRadius: 12,
+                border: '2px solid',
+                borderColor: active ? '#1a1a1a' : '#e0e0e0',
+                background: '#fff',
+                cursor: 'pointer',
+                overflow: 'hidden',
+                fontFamily: 'inherit',
+                textAlign: 'left',
+                transition: 'all 0.15s',
+              }}
+            >
+              <TreatmentPreview id={id} still={preview[0]} />
+              <div style={{ padding: 10 }}>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{V.name}</div>
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: '#888',
+                    lineHeight: 1.4,
+                    marginTop: 2,
+                  }}
+                >
+                  {V.desc}
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function TreatmentPreview({
+  id,
+  still,
+}: {
+  id: VideoTreatmentId;
+  still: string;
+}) {
+  const filter =
+    id === 'vintage'
+      ? 'sepia(0.4) contrast(1.1)'
+      : id === 'dreamy'
+        ? 'blur(2px) brightness(1.1)'
+        : id === 'fullbleed'
+          ? 'none'
+          : 'brightness(0.85)';
+  return (
+    <div
+      style={{
+        position: 'relative',
+        aspectRatio: '16 / 9',
+        background: '#000',
+        overflow: 'hidden',
+      }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={still}
+        alt=""
+        style={{
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          filter,
+          display: 'block',
+        }}
+      />
+      {id === 'letterbox' && (
+        <>
+          <div style={letterboxBar(true)} />
+          <div style={letterboxBar(false)} />
+        </>
+      )}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 99,
+            background: 'rgba(0,0,0,0.5)',
+            color: '#fff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 14,
+            border: '1px solid rgba(255,255,255,0.3)',
+          }}
+        >
+          ▶
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function letterboxBar(top: boolean): React.CSSProperties {
+  return {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    [top ? 'top' : 'bottom']: 0,
+    height: '15%',
+    background: '#000',
+  };
 }
 
 function LayoutPreview({

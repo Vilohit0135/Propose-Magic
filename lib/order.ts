@@ -98,6 +98,7 @@ export type OrderDraft = Pick<
   | 'photo_captions'
   | 'photo_layout'
   | 'scratch_photo_index'
+  | 'video_url'
   | 'video_treatment'
 >;
 
