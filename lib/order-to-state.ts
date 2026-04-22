@@ -4,6 +4,7 @@ import type { OrderState } from './types';
 export function orderToState(o: Order): OrderState {
   return {
     fromName: o.from_name,
+    fromGender: o.from_gender ?? 'they',
     toName: o.to_name,
     story: o.story ?? '',
     email: o.email,

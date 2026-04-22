@@ -12,9 +12,11 @@ export type PhotoLayoutId = 'slideshow' | 'polaroid' | 'filmstrip' | 'grid';
 export type VideoTreatmentId = 'letterbox' | 'dreamy' | 'vintage' | 'fullbleed';
 export type RevealStyle = 'three_clues' | 'trivia' | 'sensory';
 export type RevealDifficulty = 'easy' | 'medium' | 'hard';
+export type Gender = 'he' | 'she' | 'they';
 
 export type OrderState = {
   fromName: string;
+  fromGender: Gender;
   toName: string;
   story: string;
   email: string;

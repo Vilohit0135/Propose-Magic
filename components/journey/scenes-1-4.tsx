@@ -1,10 +1,24 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { motion } from 'motion/react';
 import { DEMO_PHOTOS } from '@/lib/tokens';
 import { getMessage } from '@/lib/mock-data';
 import type { OrderState, TemplateDef } from '@/lib/types';
 import { Grain, Particles } from '../particles';
+
+const MOMENT_LABELS = [
+  'moment one',
+  'moment two',
+  'moment three',
+  'moment four',
+  'moment five',
+  'moment six',
+  'moment seven',
+  'moment eight',
+  'moment nine',
+  'moment ten',
+];
 
 export function Scene1Opening({
   state,
@@ -252,31 +266,75 @@ export function Scene3Memories({
 }
 
 export function PolaroidLayout({ photos }: { photos: string[] }) {
+  const items = photos.slice(0, 8);
   return (
-    <div style={{ position: 'relative', width: 240, height: 280 }}>
-      {photos.slice(0, 5).map((p, i) => {
-        const rot = (i - 2) * 6;
-        const offsetY = i * 8;
+    <div
+      style={{
+        width: '100%',
+        display: 'flex',
+        gap: 16,
+        padding: '8px 14px 16px',
+        overflowX: 'auto',
+        scrollSnapType: 'x proximity',
+        scrollbarWidth: 'none',
+        WebkitOverflowScrolling: 'touch',
+        justifyContent: items.length <= 3 ? 'center' : 'flex-start',
+      }}
+    >
+      {items.map((p, i) => {
+        const rot = ((i % 2 === 0 ? -1 : 1) * (2 + (i % 3))) * 1.2;
         return (
-          <div
+          <motion.div
             key={i}
+            initial={{ opacity: 0, y: 28, scale: 0.7, rotate: 0 }}
+            animate={{ opacity: 1, y: 0, scale: 1, rotate: rot }}
+            transition={{
+              duration: 0.7,
+              delay: 0.12 + i * 0.18,
+              ease: [0.2, 0.9, 0.3, 1.2],
+            }}
             style={{
-              position: 'absolute',
-              left: '50%',
-              top: '50%',
-              transform: `translate(-50%, -50%) translateY(${offsetY}px) rotate(${rot}deg)`,
-              width: 180,
-              height: 220,
-              background: '#fff',
-              padding: 10,
-              paddingBottom: 30,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-              animation: `polaroidDrop 0.8s ${i * 0.15}s both cubic-bezier(.2,.9,.3,1.1)`,
+              flexShrink: 0,
+              scrollSnapAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
             }}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={p} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
-          </div>
+            <div
+              style={{
+                width: 118,
+                background: '#fff',
+                padding: 8,
+                paddingBottom: 10,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={p}
+                alt=""
+                style={{
+                  width: '100%',
+                  height: 130,
+                  objectFit: 'cover',
+                  display: 'block',
+                }}
+              />
+            </div>
+            <div
+              style={{
+                marginTop: 8,
+                fontFamily: '"Playfair Display", serif',
+                fontStyle: 'italic',
+                fontSize: 11,
+                letterSpacing: 0.4,
+                color: 'rgba(255,255,255,0.7)',
+              }}
+            >
+              {MOMENT_LABELS[i] ?? `moment ${i + 1}`}
+            </div>
+          </motion.div>
         );
       })}
     </div>
@@ -286,11 +344,24 @@ export function PolaroidLayout({ photos }: { photos: string[] }) {
 export function SlideshowLayout({ photos }: { photos: string[] }) {
   const [idx, setIdx] = useState(0);
   useEffect(() => {
+    if (photos.length === 0) return;
     const iv = setInterval(() => setIdx((i) => (i + 1) % photos.length), 3000);
     return () => clearInterval(iv);
   }, [photos.length]);
   return (
-    <div style={{ position: 'relative', width: 260, height: 320, borderRadius: 8, overflow: 'hidden' }}>
+    <motion.div
+      initial={{ opacity: 0, scale: 0.94, y: 16 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{ duration: 0.9, ease: [0.2, 0.9, 0.3, 1] }}
+      style={{
+        position: 'relative',
+        width: 240,
+        height: 300,
+        borderRadius: 10,
+        overflow: 'hidden',
+        boxShadow: '0 14px 40px rgba(0,0,0,0.45)',
+      }}
+    >
       {photos.map((p, i) => (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -305,7 +376,7 @@ export function SlideshowLayout({ photos }: { photos: string[] }) {
             objectFit: 'cover',
             opacity: i === idx ? 1 : 0,
             transition: 'opacity 1.2s',
-            filter: 'brightness(0.95)',
+            filter: 'brightness(0.97)',
           }}
         />
       ))}
@@ -314,35 +385,78 @@ export function SlideshowLayout({ photos }: { photos: string[] }) {
           position: 'absolute',
           inset: 0,
           boxShadow: 'inset 0 0 60px rgba(255,255,255,0.3)',
+          pointerEvents: 'none',
         }}
       />
-    </div>
+      <div
+        style={{
+          position: 'absolute',
+          left: 12,
+          bottom: 10,
+          fontFamily: '"Playfair Display", serif',
+          fontStyle: 'italic',
+          fontSize: 13,
+          color: 'rgba(255,255,255,0.95)',
+          textShadow: '0 2px 8px rgba(0,0,0,0.65)',
+        }}
+      >
+        {MOMENT_LABELS[idx] ?? `moment ${idx + 1}`}
+      </div>
+      <div
+        style={{
+          position: 'absolute',
+          right: 12,
+          bottom: 10,
+          fontSize: 10,
+          letterSpacing: 1.5,
+          color: 'rgba(255,255,255,0.75)',
+          textShadow: '0 2px 6px rgba(0,0,0,0.6)',
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        {idx + 1} / {photos.length}
+      </div>
+    </motion.div>
   );
 }
 
 export function FilmstripLayout({ photos }: { photos: string[] }) {
+  const items = photos.slice(0, 8);
   return (
     <div
       style={{
         width: '100%',
         overflowX: 'auto',
-        padding: '0 10px',
+        padding: '4px 14px 16px',
         display: 'flex',
-        gap: 8,
+        gap: 10,
         scrollbarWidth: 'none',
+        scrollSnapType: 'x proximity',
+        WebkitOverflowScrolling: 'touch',
       }}
     >
-      {photos.map((p, i) => (
-        <div
+      {items.map((p, i) => (
+        <motion.div
           key={i}
+          initial={{ opacity: 0, x: -14, scale: 0.94 }}
+          animate={{ opacity: 1, x: 0, scale: 1 }}
+          transition={{
+            duration: 0.6,
+            delay: 0.1 + i * 0.14,
+            ease: [0.2, 0.9, 0.3, 1],
+          }}
           style={{
             flexShrink: 0,
-            width: 180,
-            height: 240,
-            padding: 6,
+            scrollSnapAlign: 'center',
+            width: 130,
+            padding: '6px 6px 10px',
             background: '#1a0a05',
-            borderTop: '2px dashed #c9a87a40',
-            borderBottom: '2px dashed #c9a87a40',
+            borderTop: '2px dashed rgba(201,167,122,0.45)',
+            borderBottom: '2px dashed rgba(201,167,122,0.45)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 6,
           }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -351,42 +465,79 @@ export function FilmstripLayout({ photos }: { photos: string[] }) {
             alt=""
             style={{
               width: '100%',
-              height: '100%',
+              height: 160,
               objectFit: 'cover',
               filter: 'sepia(0.2) saturate(1.1)',
             }}
           />
-        </div>
+          <div
+            style={{
+              fontFamily: '"Playfair Display", serif',
+              fontStyle: 'italic',
+              fontSize: 10,
+              color: 'rgba(201,167,122,0.85)',
+              letterSpacing: 0.4,
+            }}
+          >
+            {MOMENT_LABELS[i] ?? `moment ${i + 1}`}
+          </div>
+        </motion.div>
       ))}
     </div>
   );
 }
 
 export function GridLayout({ photos }: { photos: string[] }) {
+  const items = photos.slice(0, 6);
   return (
     <div
       style={{
         display: 'grid',
         gridTemplateColumns: '1fr 1fr',
-        gap: 8,
+        gap: 10,
         width: '100%',
-        maxWidth: 320,
+        maxWidth: 340,
+        padding: '4px 0 10px',
       }}
     >
-      {photos.slice(0, 6).map((p, i) => (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
+      {items.map((p, i) => (
+        <motion.figure
           key={i}
-          src={p}
-          alt=""
-          style={{
-            width: '100%',
-            aspectRatio: '1',
-            objectFit: 'cover',
-            borderRadius: 6,
-            animation: `fadeInUp 0.8s ${i * 0.12}s both`,
+          initial={{ opacity: 0, y: 18, scale: 0.9 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{
+            duration: 0.7,
+            delay: 0.1 + i * 0.15,
+            ease: [0.2, 0.9, 0.3, 1.1],
           }}
-        />
+          style={{ margin: 0 }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={p}
+            alt=""
+            style={{
+              width: '100%',
+              aspectRatio: '1',
+              objectFit: 'cover',
+              borderRadius: 8,
+              display: 'block',
+            }}
+          />
+          <figcaption
+            style={{
+              marginTop: 4,
+              textAlign: 'center',
+              fontFamily: '"Playfair Display", serif',
+              fontStyle: 'italic',
+              fontSize: 10,
+              color: 'rgba(255,255,255,0.7)',
+              letterSpacing: 0.3,
+            }}
+          >
+            {MOMENT_LABELS[i] ?? `moment ${i + 1}`}
+          </figcaption>
+        </motion.figure>
       ))}
     </div>
   );

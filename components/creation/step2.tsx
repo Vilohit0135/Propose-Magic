@@ -22,21 +22,124 @@ export function Step2({ state, setState }: { state: OrderState; setState: SetSta
       {/* Flow picker */}
       <div>
         <SectionLabel>Flow</SectionLabel>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          {(Object.entries(FLOWS) as [FlowId, (typeof FLOWS)[FlowId]][]).map(([id, f]) => (
-            <button
-              key={id}
-              onClick={() => {
-                const firstSub = Object.keys(f.subFlows)[0];
-                const defTemplate = f.subFlows[firstSub].defaultTemplate;
-                setState((s) => ({ ...s, flow: id, subFlow: firstSub, template: defTemplate }));
-              }}
-              style={cardBtn(state.flow === id)}
-            >
-              <div style={{ fontSize: 28 }}>{f.icon}</div>
-              <div style={{ fontWeight: 600, fontSize: 13 }}>{f.name}</div>
-            </button>
-          ))}
+        <div
+          style={{
+            display: 'flex',
+            gap: 10,
+            overflowX: 'auto',
+            padding: '4px 2px 10px',
+            scrollSnapType: 'x mandatory',
+            scrollbarWidth: 'none',
+            WebkitOverflowScrolling: 'touch',
+            margin: '0 -2px',
+          }}
+        >
+          {(Object.entries(FLOWS) as [FlowId, (typeof FLOWS)[FlowId]][]).map(([id, f]) => {
+            const comingSoon = id !== 'propose';
+            const active = state.flow === id;
+            const baseBg = active
+              ? 'linear-gradient(165deg, #8b1538 0%, #c9748a 100%)'
+              : comingSoon
+                ? 'linear-gradient(160deg, #faf7f2 0%, #f5efe7 100%)'
+                : 'linear-gradient(160deg, #fff5f7 0%, #fdeaf0 100%)';
+            const borderColor = active
+              ? '#8b1538'
+              : comingSoon
+                ? '#ece6db'
+                : '#f3d7de';
+            const textColor = active
+              ? '#fff5f7'
+              : comingSoon
+                ? '#a99a8a'
+                : '#8b1538';
+            return (
+              <button
+                key={id}
+                disabled={comingSoon}
+                aria-disabled={comingSoon}
+                onClick={() => {
+                  if (comingSoon) return;
+                  const firstSub = Object.keys(f.subFlows)[0];
+                  const defTemplate = f.subFlows[firstSub].defaultTemplate;
+                  setState((s) => ({
+                    ...s,
+                    flow: id,
+                    subFlow: firstSub,
+                    template: defTemplate,
+                  }));
+                }}
+                style={{
+                  ...cardBtn(active),
+                  position: 'relative',
+                  flex: '0 0 auto',
+                  scrollSnapAlign: 'start',
+                  minWidth: 148,
+                  padding: '22px 20px 18px',
+                  borderRadius: 16,
+                  borderWidth: '1.5px',
+                  cursor: comingSoon ? 'not-allowed' : 'pointer',
+                  background: baseBg,
+                  borderColor,
+                  color: textColor,
+                  boxShadow: active
+                    ? '0 14px 34px -18px rgba(139,21,56,0.6), inset 0 0 0 1px rgba(255,245,247,0.15)'
+                    : comingSoon
+                      ? 'none'
+                      : '0 8px 22px -18px rgba(201,116,138,0.5)',
+                  transition: 'all 0.22s cubic-bezier(.2,.9,.3,1)',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 30,
+                    filter: comingSoon ? 'grayscale(1) opacity(0.55)' : 'none',
+                    marginBottom: 4,
+                  }}
+                >
+                  {f.icon}
+                </div>
+                <div
+                  style={{
+                    fontFamily: '"Playfair Display", serif',
+                    fontStyle: 'italic',
+                    fontWeight: 500,
+                    fontSize: 19,
+                    lineHeight: 1.1,
+                    letterSpacing: 0.3,
+                    textShadow: active
+                      ? '0 0 22px rgba(255,245,247,0.35)'
+                      : 'none',
+                  }}
+                >
+                  {f.name}
+                </div>
+                {comingSoon && (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: 8,
+                      right: 8,
+                      padding: '2px 8px',
+                      borderRadius: 99,
+                      background: '#fff',
+                      border: '1px solid #e5d9d0',
+                      color: '#b08a6e',
+                      fontSize: 9,
+                      fontWeight: 700,
+                      letterSpacing: 0.8,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Soon
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ fontSize: 11, color: '#aaa', marginTop: 4 }}>
+          Swipe to see all four · Proposal flow is live now. Birthday, Valentine&apos;s and
+          Anniversary launch soon.
         </div>
       </div>
       {/* Sub-flow */}

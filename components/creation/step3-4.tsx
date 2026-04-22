@@ -127,32 +127,52 @@ export function Step3({ state, setState }: { state: OrderState; setState: SetSta
       {/* Layout */}
       <div>
         <SectionLabel>Photo Layout</SectionLabel>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          {(Object.entries(PHOTO_LAYOUTS) as [PhotoLayoutId, (typeof PHOTO_LAYOUTS)[PhotoLayoutId]][]).map(
-            ([id, L]) => (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          {(
+            Object.entries(PHOTO_LAYOUTS) as [
+              PhotoLayoutId,
+              (typeof PHOTO_LAYOUTS)[PhotoLayoutId],
+            ][]
+          ).map(([id, L]) => {
+            const active = state.photoLayout === id;
+            const preview =
+              state.photos.length > 0 ? state.photos : DEMO_PHOTOS.slice(0, 4);
+            return (
               <button
                 key={id}
                 onClick={() => setState((s) => ({ ...s, photoLayout: id }))}
                 style={{
-                  ...cardBtn(state.photoLayout === id),
-                  padding: 14,
-                  alignItems: 'flex-start',
-                  textAlign: 'left' as const,
+                  padding: 0,
+                  borderRadius: 14,
+                  border: '2px solid',
+                  borderColor: active ? '#1a1a1a' : '#e0e0e0',
+                  background: '#fff',
+                  cursor: 'pointer',
+                  overflow: 'hidden',
+                  fontFamily: 'inherit',
+                  textAlign: 'left',
+                  transition: 'all 0.15s',
                 }}
               >
-                <div style={{ fontWeight: 600, fontSize: 13 }}>{L.name}</div>
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: state.photoLayout === id ? '#ccc' : '#888',
-                    lineHeight: 1.4,
-                  }}
-                >
-                  {L.desc}
+                <LayoutPreview layout={id} photos={preview} />
+                <div style={{ padding: 10 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a' }}>
+                    {L.name}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: '#888',
+                      lineHeight: 1.4,
+                      marginTop: 2,
+                    }}
+                  >
+                    {L.desc}
+                  </div>
                 </div>
               </button>
-            )
-          )}
+            );
+          })}
         </div>
       </div>
       {state.package === 'photos_video' && (
@@ -348,6 +368,145 @@ export function Step4({ state, setState }: { state: OrderState; setState: SetSta
         1. We generate your page in seconds · 2. You get a shareable link · 3. Send it to{' '}
         {state.toName || 'them'} on WhatsApp
       </div>
+    </div>
+  );
+}
+
+function LayoutPreview({
+  layout,
+  photos,
+}: {
+  layout: PhotoLayoutId;
+  photos: string[];
+}) {
+  const palette = TEMPLATES.rose_dark.palette;
+  return (
+    <div
+      style={{
+        position: 'relative',
+        height: 110,
+        background: `linear-gradient(160deg, ${palette.bg2}, ${palette.bg})`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 10,
+        overflow: 'hidden',
+      }}
+    >
+      {layout === 'polaroid' && <PolaroidPreview photos={photos} />}
+      {layout === 'slideshow' && <SlideshowPreview photos={photos} />}
+      {layout === 'filmstrip' && <FilmstripPreview photos={photos} />}
+      {layout === 'grid' && <GridPreview photos={photos} />}
+    </div>
+  );
+}
+
+function PolaroidPreview({ photos }: { photos: string[] }) {
+  const row = photos.slice(0, 3);
+  return (
+    <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end' }}>
+      {row.map((p, i) => (
+        <div
+          key={i}
+          style={{
+            width: 42,
+            height: 54,
+            background: '#fff',
+            padding: 3,
+            paddingBottom: 9,
+            boxShadow: '0 4px 10px rgba(0,0,0,0.35)',
+            transform: `rotate(${(i - 1) * 5}deg)`,
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={p}
+            alt=""
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SlideshowPreview({ photos }: { photos: string[] }) {
+  const hero = photos[0];
+  return (
+    <div
+      style={{
+        width: 70,
+        height: 88,
+        borderRadius: 6,
+        overflow: 'hidden',
+        boxShadow: '0 4px 10px rgba(0,0,0,0.4)',
+      }}
+    >
+      {hero && (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          src={hero}
+          alt=""
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        />
+      )}
+    </div>
+  );
+}
+
+function FilmstripPreview({ photos }: { photos: string[] }) {
+  const row = photos.slice(0, 4);
+  return (
+    <div
+      style={{
+        display: 'flex',
+        gap: 3,
+        padding: '4px 0',
+        borderTop: '1.5px dashed rgba(201,167,122,0.5)',
+        borderBottom: '1.5px dashed rgba(201,167,122,0.5)',
+        background: '#1a0a05',
+      }}
+    >
+      {row.map((p, i) => (
+        <div key={i} style={{ width: 26, height: 40 }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={p}
+            alt=""
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              filter: 'sepia(0.25) saturate(1.1)',
+            }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function GridPreview({ photos }: { photos: string[] }) {
+  const row = photos.slice(0, 4);
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: 3,
+        width: 76,
+      }}
+    >
+      {row.map((p, i) => (
+        <div key={i} style={{ aspectRatio: '1', borderRadius: 3, overflow: 'hidden' }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={p}
+            alt=""
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        </div>
+      ))}
     </div>
   );
 }

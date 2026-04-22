@@ -11,6 +11,7 @@ type Phase = 'generating' | 'delivered' | 'failed';
 function orderStateToPayload(s: OrderState) {
   return {
     from_name: s.fromName,
+    from_gender: s.fromGender,
     to_name: s.toName,
     story: s.story || null,
     email: s.email,

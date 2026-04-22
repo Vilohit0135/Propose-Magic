@@ -1,0 +1,295 @@
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import { motion } from 'motion/react';
+import type { OrderState, SubFlow, TemplateDef } from '@/lib/types';
+import { withAlpha } from './bubbles';
+
+export function YesCard({
+  state,
+  sub,
+  t,
+  hearts,
+  reactions,
+  startTime,
+  onReset,
+}: {
+  state: OrderState;
+  sub: SubFlow;
+  t: TemplateDef;
+  hearts: number;
+  reactions: string[];
+  startTime: number;
+  onReset: () => void;
+}) {
+  const [showCTA, setShowCTA] = useState(false);
+  const [showReply, setShowReply] = useState(false);
+  useEffect(() => {
+    const t1 = setTimeout(() => setShowCTA(true), 1800);
+    const t2 = setTimeout(() => setShowReply(true), 3600);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, []);
+
+  const mins = Math.max(1, Math.round((Date.now() - startTime) / 60000));
+  const firstTo = state.toName.trim().split(/\s+/)[0] || 'they';
+  const headline = `${firstTo} said YES! ${sub.particle}`;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 170,
+        background: 'rgba(0,0,0,0.6)',
+        backdropFilter: 'blur(14px)',
+        WebkitBackdropFilter: 'blur(14px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+        overflow: 'hidden',
+      }}
+    >
+      <Confetti t={t} />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.85, y: 24 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 170, damping: 22, delay: 0.15 }}
+        style={{
+          position: 'relative',
+          width: '100%',
+          maxWidth: 400,
+          padding: '36px 28px 28px',
+          borderRadius: 26,
+          background: `linear-gradient(165deg, ${t.palette.bg2}, ${t.palette.bg})`,
+          color: t.palette.text,
+          border: `1px solid ${withAlpha(t.palette.accent, 0.45)}`,
+          boxShadow: `0 30px 60px rgba(0,0,0,0.5), 0 0 80px ${withAlpha(
+            t.palette.accent,
+            0.35,
+          )}`,
+          textAlign: 'center',
+        }}
+      >
+        <motion.div
+          initial={{ scaleX: 0 }}
+          animate={{ scaleX: 1 }}
+          transition={{ duration: 0.7, delay: 0.3 }}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 3,
+            background: `linear-gradient(90deg, ${t.palette.accent}, ${t.palette.accent2})`,
+            borderTopLeftRadius: 26,
+            borderTopRightRadius: 26,
+          }}
+        />
+
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.45 }}
+          style={{
+            fontFamily: t.fonts.display,
+            fontStyle: 'italic',
+            fontSize: 34,
+            lineHeight: 1.1,
+            color: '#fff',
+            textShadow: `0 0 30px ${withAlpha(t.palette.accent, 0.6)}`,
+          }}
+        >
+          {headline}
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.7, delay: 0.8 }}
+          style={{
+            marginTop: 22,
+            fontFamily: t.fonts.display,
+            fontStyle: 'italic',
+            fontSize: 20,
+            color: t.palette.accent,
+          }}
+        >
+          {state.fromName}{' '}
+          <span style={{ fontSize: 14, opacity: 0.6 }}>&</span> {state.toName}
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.7, delay: 1.0 }}
+          style={{
+            fontFamily: t.fonts.body,
+            fontSize: 10,
+            letterSpacing: 3,
+            color: t.palette.muted,
+            marginTop: 10,
+          }}
+        >
+          {formatToday()}
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, delay: 1.4 }}
+          style={{
+            marginTop: 22,
+            padding: '12px 14px',
+            background: withAlpha(t.palette.text, 0.06),
+            border: `1px solid ${withAlpha(t.palette.text, 0.12)}`,
+            borderRadius: 12,
+            fontSize: 12,
+            color: t.palette.text,
+            lineHeight: 1.55,
+            fontFamily: t.fonts.body,
+          }}
+        >
+          You took {mins} min · Sent {hearts} hearts
+          {reactions.length > 0 &&
+            ` · Reacted with ${[...new Set(reactions)].slice(0, 3).join('')}`}
+        </motion.div>
+
+        {showCTA && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7 }}
+            style={{
+              marginTop: 20,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+            }}
+          >
+            <button
+              style={{
+                padding: '14px 20px',
+                borderRadius: 99,
+                border: 'none',
+                background: `linear-gradient(90deg, ${t.palette.accent}, ${t.palette.accent2})`,
+                color: t.palette.bg,
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow: `0 0 30px ${withAlpha(t.palette.accent, 0.5)}`,
+                fontFamily: t.fonts.body,
+              }}
+            >
+              Share this moment →
+            </button>
+            <button
+              style={{
+                padding: '12px 20px',
+                borderRadius: 99,
+                border: `1px solid ${withAlpha(t.palette.text, 0.2)}`,
+                background: withAlpha(t.palette.text, 0.04),
+                color: t.palette.text,
+                fontSize: 13,
+                cursor: 'pointer',
+                fontFamily: t.fonts.body,
+              }}
+            >
+              Save as image
+            </button>
+          </motion.div>
+        )}
+
+        {showReply && (
+          <motion.button
+            onClick={onReset}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.7 }}
+            style={{
+              marginTop: 16,
+              padding: '10px 18px',
+              borderRadius: 99,
+              border: `1px dashed ${withAlpha(t.palette.text, 0.3)}`,
+              background: 'transparent',
+              color: t.palette.accent,
+              fontSize: 12,
+              cursor: 'pointer',
+              fontFamily: t.fonts.body,
+            }}
+          >
+            Now surprise them back — Create yours free →
+          </motion.button>
+        )}
+
+        <div
+          style={{
+            marginTop: 20,
+            fontSize: 10,
+            color: t.palette.muted,
+            opacity: 0.6,
+            letterSpacing: 0.3,
+            fontFamily: t.fonts.body,
+          }}
+        >
+          Made with ProposeMagic ♥
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function formatToday(): string {
+  const d = new Date();
+  return d
+    .toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    })
+    .toUpperCase();
+}
+
+function Confetti({ t }: { t: TemplateDef }) {
+  const pieces = Array.from({ length: 28 });
+  const colors = [
+    t.palette.accent,
+    t.palette.accent2 || t.palette.accent,
+    '#fff',
+    t.palette.text,
+  ];
+  return (
+    <div
+      aria-hidden
+      style={{
+        position: 'absolute',
+        inset: 0,
+        pointerEvents: 'none',
+        overflow: 'hidden',
+        zIndex: 0,
+      }}
+    >
+      {pieces.map((_, i) => (
+        <div
+          key={i}
+          style={{
+            position: 'absolute',
+            left: `${Math.random() * 100}%`,
+            top: -20,
+            width: 6 + Math.random() * 6,
+            height: 10 + Math.random() * 8,
+            background: colors[i % colors.length],
+            animation: `confettiFall ${2 + Math.random() * 3}s ${Math.random() * 1}s linear forwards`,
+            transform: `rotate(${Math.random() * 360}deg)`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}

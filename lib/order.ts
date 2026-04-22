@@ -1,5 +1,6 @@
 import type {
   FlowId,
+  Gender,
   PackageId,
   PhotoLayoutId,
   RevealDifficulty,
@@ -27,6 +28,7 @@ export type Order = {
   status: OrderStatus;
 
   from_name: string;
+  from_gender: Gender;
   to_name: string;
   story: string | null;
   email: string;
@@ -81,6 +83,7 @@ export type Order = {
 export type OrderDraft = Pick<
   Order,
   | 'from_name'
+  | 'from_gender'
   | 'to_name'
   | 'story'
   | 'email'

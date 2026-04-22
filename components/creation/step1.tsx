@@ -1,15 +1,20 @@
 'use client';
 
 import React from 'react';
-import type { OrderState, RevealDifficulty, RevealStyle } from '@/lib/types';
-import { Field } from './creation-flow';
+import type { Gender, OrderState, RevealDifficulty, RevealStyle } from '@/lib/types';
+import { Field, SectionLabel } from './creation-flow';
 
 type SetState = React.Dispatch<React.SetStateAction<OrderState>>;
 
+const GENDERS: { id: Gender; label: string; pronoun: string }[] = [
+  { id: 'he', label: 'He / him', pronoun: 'him' },
+  { id: 'she', label: 'She / her', pronoun: 'her' },
+  { id: 'they', label: 'They / them', pronoun: 'them' },
+];
+
 export function Step1({ state, setState }: { state: OrderState; setState: SetState }) {
-  const flowAllowsAnon =
-    (state.flow === 'propose' && state.subFlow === 'love') ||
-    (state.flow === 'birthday' && state.subFlow === 'anonymous');
+  // Anonymous is available on every propose sub-flow.
+  const flowAllowsAnon = state.flow === 'propose';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div>
@@ -27,6 +32,40 @@ export function Step1({ state, setState }: { state: OrderState; setState: SetSta
           Tell us who this moment is for.
         </div>
       </div>
+
+      <div>
+        <SectionLabel>You are</SectionLabel>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+          {GENDERS.map((g) => {
+            const active = state.fromGender === g.id;
+            return (
+              <button
+                key={g.id}
+                onClick={() => setState((s) => ({ ...s, fromGender: g.id }))}
+                style={{
+                  padding: '12px 10px',
+                  borderRadius: 12,
+                  border: '1px solid',
+                  borderColor: active ? '#1a1a1a' : '#e0e0e0',
+                  background: active ? '#1a1a1a' : '#fff',
+                  color: active ? '#fff' : '#1a1a1a',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {g.label}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ fontSize: 11, color: '#aaa', marginTop: 6 }}>
+          We&apos;ll use the right pronouns in the letter and on her page.
+        </div>
+      </div>
+
       <Field
         label="Your name"
         value={state.fromName}
@@ -47,32 +86,9 @@ export function Step1({ state, setState }: { state: OrderState; setState: SetSta
         multiline
         maxLength={280}
       />
-      {flowAllowsAnon && (
-        <div
-          style={{
-            background: 'linear-gradient(135deg, #faf4ff, #f0e9ff)',
-            border: '1px solid #d9c9ff',
-            borderRadius: 14,
-            padding: 16,
-          }}
-        >
-          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={state.isAnonymous}
-              onChange={(e) => setState((s) => ({ ...s, isAnonymous: e.target.checked }))}
-              style={{ marginTop: 3 }}
-            />
-            <div>
-              <div style={{ fontWeight: 600, fontSize: 14 }}>Make this a surprise ✨</div>
-              <div style={{ fontSize: 12, color: '#6b5b8a', marginTop: 3, lineHeight: 1.5 }}>
-                Keep me anonymous until they solve a small quiz. Name revealed cinematically before the big moment.
-              </div>
-            </div>
-          </label>
-          {state.isAnonymous && <RevealBuilder state={state} setState={setState} />}
-        </div>
-      )}
+
+      <GamificationCard state={state} setState={setState} flowAllowsAnon={flowAllowsAnon} />
+
       <div style={{ fontSize: 11, color: '#aaa', textAlign: 'center', marginTop: 8 }}>
         No account needed · No password · Zero friction
       </div>
@@ -80,15 +96,132 @@ export function Step1({ state, setState }: { state: OrderState; setState: SetSta
   );
 }
 
+function GamificationCard({
+  state,
+  setState,
+  flowAllowsAnon,
+}: {
+  state: OrderState;
+  setState: SetState;
+  flowAllowsAnon: boolean;
+}) {
+  const items: { icon: string; name: string; desc: string }[] = [
+    {
+      icon: '♥',
+      name: 'Heart taps',
+      desc: 'She taps a heart as she reads — count shows up on the final page.',
+    },
+    {
+      icon: '😍',
+      name: 'Letter reactions',
+      desc: 'Five emoji she can pick on the big letter. Saved and shown at the yes screen.',
+    },
+    {
+      icon: '→',
+      name: 'Dodging “No”',
+      desc: 'The No button jumps when she tries to tap it. Playful tension before yes.',
+    },
+  ];
+
+  return (
+    <div
+      style={{
+        background: '#fff',
+        border: '1px solid #ececec',
+        borderRadius: 14,
+        padding: 16,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 11,
+          fontWeight: 700,
+          color: '#555',
+          letterSpacing: 1,
+          textTransform: 'uppercase',
+          marginBottom: 10,
+        }}
+      >
+        Gamification built in
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {items.map((it) => (
+          <div key={it.name} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+            <div
+              style={{
+                flexShrink: 0,
+                width: 26,
+                height: 26,
+                borderRadius: 99,
+                background: '#fff5f7',
+                border: '1px solid #f3d7de',
+                color: '#c9748a',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 13,
+                fontWeight: 600,
+              }}
+            >
+              {it.icon}
+            </div>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a' }}>{it.name}</div>
+              <div style={{ fontSize: 12, color: '#888', marginTop: 2, lineHeight: 1.5 }}>
+                {it.desc}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {flowAllowsAnon && (
+        <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px dashed #eee' }}>
+          <label
+            style={{ display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer' }}
+          >
+            <input
+              type="checkbox"
+              checked={state.isAnonymous}
+              onChange={(e) =>
+                setState((s) => ({ ...s, isAnonymous: e.target.checked }))
+              }
+              style={{ marginTop: 3 }}
+            />
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a' }}>
+                Anonymous reveal (optional) ✨
+              </div>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: '#888',
+                  marginTop: 3,
+                  lineHeight: 1.5,
+                }}
+              >
+                Hide your name behind a small quiz. She has to solve it to see who&apos;s
+                been writing — your name crossfades in across every prior message the moment
+                she does.
+              </div>
+            </div>
+          </label>
+          {state.isAnonymous && <RevealBuilder state={state} setState={setState} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function RevealBuilder({ state, setState }: { state: OrderState; setState: SetState }) {
   const styles: { id: RevealStyle; name: string; desc: string }[] = [
-    { id: 'three_clues', name: 'Three Clues', desc: 'Write 3 hints; they guess from 4 names' },
-    { id: 'trivia', name: 'Trivia Quiz', desc: "3 multi-choice questions only they'd know" },
-    { id: 'sensory', name: 'Sensory Unlock', desc: 'Pick a color, a song vibe, a memory' },
+    { id: 'three_clues', name: 'Three Clues', desc: 'Write 3 hints; she guesses from 4 names' },
+    { id: 'trivia', name: 'Trivia Quiz', desc: "3 multi-choice questions only she'd know" },
+    { id: 'sensory', name: 'Sensory Unlock', desc: 'She picks a color, a song vibe, a memory' },
   ];
   const difficulties: RevealDifficulty[] = ['easy', 'medium', 'hard'];
   return (
-    <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px dashed #d9c9ff' }}>
+    <div style={{ marginTop: 12 }}>
       <div
         style={{
           fontSize: 11,
@@ -96,10 +229,11 @@ function RevealBuilder({ state, setState }: { state: OrderState; setState: SetSt
           color: '#6b5b8a',
           letterSpacing: 0.8,
           textTransform: 'uppercase',
+          marginTop: 6,
           marginBottom: 8,
         }}
       >
-        Reveal Style
+        Reveal style
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {styles.map((sOpt) => (

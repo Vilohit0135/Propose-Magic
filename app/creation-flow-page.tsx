@@ -6,6 +6,7 @@ import type { OrderState } from '@/lib/types';
 
 const INITIAL: OrderState = {
   fromName: '',
+  fromGender: 'he',
   toName: '',
   story: '',
   email: '',

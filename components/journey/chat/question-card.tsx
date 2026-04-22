@@ -18,12 +18,14 @@ export function QuestionCard({
 }) {
   const [dodges, setDodges] = useState(0);
   const [noPos, setNoPos] = useState({ x: 0, y: 0 });
-  const noLabels = ['no', 'really?', 'fine 😢', ''];
+  // Keeps cycling — never runs out. After the first few, it settles on a
+  // resigned loop so the button never hides and never gives up.
+  const NO_LABELS = ['no', 'really?', 'come on…', 'no way', 'please?', 'fine 😢', 'don’t'];
 
-  const dodge = (e?: React.MouseEvent) => {
+  const dodge = (e?: React.SyntheticEvent) => {
     e?.stopPropagation?.();
-    if (dodges >= 3) return;
-    const max = 60 - dodges * 15;
+    // Jitter stays lively forever — amplitude floor keeps it moving.
+    const max = Math.max(30, 72 - dodges * 6);
     setNoPos({ x: (Math.random() - 0.5) * max, y: (Math.random() - 0.5) * max });
     setDodges((d) => d + 1);
   };
@@ -168,30 +170,29 @@ export function QuestionCard({
           Yes, I will! {sub.particle}
         </motion.button>
 
-        {dodges < 3 && (
-          <motion.button
-            onMouseEnter={dodge}
-            onClick={dodge}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 0.8 }}
-            transition={{ duration: 0.6, delay: 2.1 }}
-            style={{
-              marginTop: 14,
-              padding: '6px 16px',
-              borderRadius: 99,
-              border: 'none',
-              background: 'transparent',
-              color: t.palette.muted,
-              fontSize: 12,
-              cursor: 'pointer',
-              transform: `translate(${noPos.x}px, ${noPos.y}px) scale(${1 - dodges * 0.15})`,
-              transition: 'transform 0.3s cubic-bezier(.3,1.5,.5,1)',
-              fontFamily: t.fonts.body,
-            }}
-          >
-            {noLabels[dodges]}
-          </motion.button>
-        )}
+        <motion.button
+          onMouseEnter={dodge}
+          onFocus={dodge}
+          onClick={dodge}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 0.8 }}
+          transition={{ duration: 0.6, delay: 2.1 }}
+          style={{
+            marginTop: 14,
+            padding: '6px 16px',
+            borderRadius: 99,
+            border: 'none',
+            background: 'transparent',
+            color: t.palette.muted,
+            fontSize: 12,
+            cursor: 'pointer',
+            transform: `translate(${noPos.x}px, ${noPos.y}px)`,
+            transition: 'transform 0.35s cubic-bezier(.3,1.5,.5,1)',
+            fontFamily: t.fonts.body,
+          }}
+        >
+          {NO_LABELS[dodges % NO_LABELS.length]}
+        </motion.button>
       </motion.div>
     </motion.div>
   );

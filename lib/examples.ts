@@ -13,6 +13,7 @@ export type Example = {
 function makeState(overrides: Partial<OrderState>): OrderState {
   const base: OrderState = {
     fromName: 'Arjun',
+    fromGender: 'he',
     toName: 'Priya',
     story: '',
     email: 'demo@proposemagic.in',

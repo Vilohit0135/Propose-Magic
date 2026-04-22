@@ -4,8 +4,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FLOWS, TEMPLATES } from '@/lib/tokens';
 import type { OrderState, TemplateDef } from '@/lib/types';
 import { Grain, Particles } from '../../particles';
-import { Scene7Yes } from '../scenes-5-7';
 import { QuestionCard } from './question-card';
+import { YesCard } from './yes-card';
 import {
   ChapterTitle,
   ContactCardBubble,
@@ -110,22 +110,6 @@ export function ChatJourney({
     // Fallback: reload to restart the journey
     if (typeof window !== 'undefined') window.location.reload();
   };
-
-  if (phase === 'yes' && sub) {
-    return (
-      <div style={{ position: 'absolute', inset: 0 }}>
-        <Scene7Yes
-          state={state}
-          t={t}
-          sub={sub}
-          hearts={hearts}
-          reactions={reactions}
-          startTime={startTime}
-          onReset={handleReset}
-        />
-      </div>
-    );
-  }
 
   const displayName = identityRevealed ? state.fromName : 'Someone special';
 
@@ -240,6 +224,17 @@ export function ChatJourney({
           sub={sub}
           t={t}
           onYes={() => setPhase('yes')}
+        />
+      )}
+      {phase === 'yes' && sub && (
+        <YesCard
+          state={state}
+          sub={sub}
+          t={t}
+          hearts={hearts}
+          reactions={reactions}
+          startTime={startTime}
+          onReset={handleReset}
         />
       )}
     </div>

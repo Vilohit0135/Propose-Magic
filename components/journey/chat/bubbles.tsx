@@ -484,7 +484,7 @@ export function ChapterTitle({ text, t }: { text: string; t: TemplateDef }) {
 export function InlineGallery({
   urls,
   layout,
-  t,
+  t: _t,
 }: {
   urls: string[];
   layout: PhotoLayoutId;
@@ -492,6 +492,9 @@ export function InlineGallery({
 }) {
   const photos = urls.length ? urls : [];
   if (photos.length === 0) return null;
+  // Polaroid and filmstrip are horizontal rows that own their own scroll — let
+  // them use the full chat width. Slideshow and grid stay centered.
+  const fullBleed = layout === 'polaroid' || layout === 'filmstrip';
   return (
     <motion.div
       initial={{ opacity: 0, y: 32 }}
@@ -500,15 +503,21 @@ export function InlineGallery({
       style={{
         display: 'flex',
         justifyContent: 'center',
-        padding: '8px 14px 24px',
+        padding: fullBleed ? '8px 0 24px' : '8px 14px 24px',
         minHeight:
-          layout === 'polaroid' ? 300 : layout === 'slideshow' ? 340 : layout === 'grid' ? 280 : 260,
+          layout === 'polaroid'
+            ? 210
+            : layout === 'slideshow'
+              ? 340
+              : layout === 'grid'
+                ? 300
+                : 220,
       }}
     >
       <div
         style={{
           width: '100%',
-          maxWidth: 360,
+          maxWidth: fullBleed ? undefined : 360,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',

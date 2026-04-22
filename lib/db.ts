@@ -46,6 +46,7 @@ export async function createOrder(draft: OrderDraft): Promise<Order> {
     status: 'PENDING',
 
     from_name: draft.from_name,
+    from_gender: draft.from_gender,
     to_name: draft.to_name,
     story: draft.story ?? null,
     email: draft.email,

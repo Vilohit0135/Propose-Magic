@@ -12,6 +12,7 @@ const ALLOWED_REVEAL_STYLES = new Set(['three_clues', 'trivia', 'sensory']);
 const ALLOWED_REVEAL_DIFFICULTIES = new Set(['easy', 'medium', 'hard']);
 const ALLOWED_PHOTO_LAYOUTS = new Set(['slideshow', 'polaroid', 'filmstrip', 'grid']);
 const ALLOWED_VIDEO_TREATMENTS = new Set(['letterbox', 'dreamy', 'vintage', 'fullbleed']);
+const ALLOWED_GENDERS = new Set(['he', 'she', 'they']);
 
 function str(v: unknown, max = 200): string {
   if (typeof v !== 'string') return '';
@@ -27,6 +28,8 @@ export async function POST(req: Request) {
   }
 
   const from_name = str(body.from_name, 100).trim();
+  const from_gender_raw = str(body.from_gender, 10);
+  const from_gender = ALLOWED_GENDERS.has(from_gender_raw) ? from_gender_raw : 'they';
   const to_name = str(body.to_name, 100).trim();
   const email = str(body.email, 200).trim();
   const flow = str(body.flow, 30);
@@ -65,6 +68,7 @@ export async function POST(req: Request) {
 
   const draft: OrderDraft = {
     from_name,
+    from_gender: from_gender as OrderDraft['from_gender'],
     to_name,
     story: str(body.story, 2000) || null,
     email,
