@@ -30,6 +30,8 @@ function orderStateToPayload(s: OrderState) {
     scratch_photo_index: s.scratchIndex,
     video_url: s.package === 'photos_video' ? s.videoUrl : null,
     video_treatment: s.package === 'photos_video' ? s.videoTreatment : null,
+    music_video_id: s.musicVideoId,
+    music_start_seconds: s.musicStartSeconds,
   };
 }
 

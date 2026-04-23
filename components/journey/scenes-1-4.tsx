@@ -1,11 +1,69 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { DEMO_PHOTOS } from '@/lib/tokens';
 import { getMessage } from '@/lib/mock-data';
 import type { OrderState, TemplateDef } from '@/lib/types';
 import { Grain, Particles } from '../particles';
+
+// Slowly auto-scrolls a horizontal track so the receiver sees every photo
+// without needing to realize they can swipe. Pauses when she manually
+// touches/drags, resumes after a short idle window.
+function useAutoDrift(pxPerSecond = 24, resumeAfterMs = 2800) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof window === 'undefined') return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    let raf = 0;
+    let last = performance.now();
+    let direction = 1;
+    let paused = false;
+    let resumeTimer: number | null = null;
+
+    const step = (now: number) => {
+      const dt = (now - last) / 1000;
+      last = now;
+      if (!paused && el.scrollWidth > el.clientWidth + 1) {
+        const delta = pxPerSecond * dt * direction;
+        el.scrollLeft += delta;
+        const max = el.scrollWidth - el.clientWidth;
+        if (el.scrollLeft >= max - 1) {
+          el.scrollLeft = max;
+          direction = -1;
+        } else if (el.scrollLeft <= 0) {
+          el.scrollLeft = 0;
+          direction = 1;
+        }
+      }
+      raf = requestAnimationFrame(step);
+    };
+
+    const pause = () => {
+      paused = true;
+      if (resumeTimer) window.clearTimeout(resumeTimer);
+      resumeTimer = window.setTimeout(() => {
+        paused = false;
+      }, resumeAfterMs);
+    };
+
+    el.addEventListener('pointerdown', pause);
+    el.addEventListener('wheel', pause, { passive: true });
+    el.addEventListener('touchstart', pause, { passive: true });
+
+    raf = requestAnimationFrame(step);
+    return () => {
+      cancelAnimationFrame(raf);
+      if (resumeTimer) window.clearTimeout(resumeTimer);
+      el.removeEventListener('pointerdown', pause);
+      el.removeEventListener('wheel', pause);
+      el.removeEventListener('touchstart', pause);
+    };
+  }, [pxPerSecond, resumeAfterMs]);
+  return ref;
+}
 
 const MOMENT_LABELS = [
   'moment one',
@@ -267,8 +325,10 @@ export function Scene3Memories({
 
 export function PolaroidLayout({ photos }: { photos: string[] }) {
   const items = photos.slice(0, 8);
+  const scrollerRef = useAutoDrift(20);
   return (
     <div
+      ref={scrollerRef}
       style={{
         width: '100%',
         display: 'flex',
@@ -287,7 +347,8 @@ export function PolaroidLayout({ photos }: { photos: string[] }) {
           <motion.div
             key={i}
             initial={{ opacity: 0, y: 28, scale: 0.7, rotate: 0 }}
-            animate={{ opacity: 1, y: 0, scale: 1, rotate: rot }}
+            whileInView={{ opacity: 1, y: 0, scale: 1, rotate: rot }}
+            viewport={{ once: true, amount: 0.3 }}
             transition={{
               duration: 0.7,
               delay: 0.12 + i * 0.18,
@@ -351,7 +412,8 @@ export function SlideshowLayout({ photos }: { photos: string[] }) {
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.94, y: 16 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
+      whileInView={{ opacity: 1, scale: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.3 }}
       transition={{ duration: 0.9, ease: [0.2, 0.9, 0.3, 1] }}
       style={{
         position: 'relative',
@@ -362,24 +424,29 @@ export function SlideshowLayout({ photos }: { photos: string[] }) {
         boxShadow: '0 14px 40px rgba(0,0,0,0.45)',
       }}
     >
-      {photos.map((p, i) => (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          key={i}
-          src={p}
-          alt=""
-          style={{
-            position: 'absolute',
-            inset: 0,
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            opacity: i === idx ? 1 : 0,
-            transition: 'opacity 1.2s',
-            filter: 'brightness(0.97)',
-          }}
-        />
-      ))}
+      {photos.map((p, i) => {
+        const offset = i - idx;
+        return (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={i}
+            src={p}
+            alt=""
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              opacity: i === idx ? 1 : 0,
+              transform: `translate3d(${offset === 0 ? 0 : offset > 0 ? '40px' : '-40px'}, 0, 0) scale(${i === idx ? 1 : 1.04})`,
+              transition:
+                'opacity 0.9s ease, transform 1.1s cubic-bezier(0.2,0.8,0.3,1)',
+              filter: 'brightness(0.97)',
+            }}
+          />
+        );
+      })}
       <div
         style={{
           position: 'absolute',
@@ -422,8 +489,10 @@ export function SlideshowLayout({ photos }: { photos: string[] }) {
 
 export function FilmstripLayout({ photos }: { photos: string[] }) {
   const items = photos.slice(0, 8);
+  const scrollerRef = useAutoDrift(28);
   return (
     <div
+      ref={scrollerRef}
       style={{
         width: '100%',
         overflowX: 'auto',
@@ -439,7 +508,8 @@ export function FilmstripLayout({ photos }: { photos: string[] }) {
         <motion.div
           key={i}
           initial={{ opacity: 0, x: -14, scale: 0.94 }}
-          animate={{ opacity: 1, x: 0, scale: 1 }}
+          whileInView={{ opacity: 1, x: 0, scale: 1 }}
+          viewport={{ once: true, amount: 0.3 }}
           transition={{
             duration: 0.6,
             delay: 0.1 + i * 0.14,
@@ -504,7 +574,8 @@ export function GridLayout({ photos }: { photos: string[] }) {
         <motion.figure
           key={i}
           initial={{ opacity: 0, y: 18, scale: 0.9 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
+          whileInView={{ opacity: 1, y: 0, scale: 1 }}
+          viewport={{ once: true, amount: 0.3 }}
           transition={{
             duration: 0.7,
             delay: 0.1 + i * 0.15,

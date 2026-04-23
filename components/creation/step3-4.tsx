@@ -13,6 +13,7 @@ import type { OrderState, PackageId, PhotoLayoutId, VideoTreatmentId } from '@/l
 import { cardBtn, Field, SectionLabel } from './creation-flow';
 import { TemplateThumbnail } from './step2';
 import { LayoutPreviewModal } from './layout-preview-modal';
+import { MusicUrlInput } from './music-url-input';
 
 type SetState = React.Dispatch<React.SetStateAction<OrderState>>;
 
@@ -57,6 +58,7 @@ export function Step3({ state, setState }: { state: OrderState; setState: SetSta
         </div>
       </div>
       <PackagePicker state={state} setState={setState} compact />
+      <MusicUrlInput state={state} setState={setState} />
       <PhotoUploadGrid state={state} setState={setState} />
       {/* Layout */}
       <LayoutSection state={state} setState={setState} />

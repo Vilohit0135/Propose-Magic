@@ -542,8 +542,9 @@ export function InlineGallery({
   return (
     <motion.div
       initial={{ opacity: 0, y: 32 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 1.0, delay: 0.5, ease: [0.2, 0.8, 0.3, 1] }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.25 }}
+      transition={{ duration: 1.0, delay: 0.2, ease: [0.2, 0.8, 0.3, 1] }}
       style={{
         display: 'flex',
         justifyContent: 'center',

@@ -17,6 +17,13 @@ export function orderToState(o: Order): OrderState {
     photoLayout: o.photo_layout ?? 'polaroid',
     videoUrl: o.video_url,
     videoTreatment: o.video_treatment ?? 'letterbox',
+    musicUrl: o.music_video_id
+      ? `https://www.youtube.com/watch?v=${o.music_video_id}${
+          o.music_start_seconds ? `&t=${o.music_start_seconds}` : ''
+        }`
+      : '',
+    musicVideoId: o.music_video_id,
+    musicStartSeconds: o.music_start_seconds,
     scratchIndex: o.scratch_photo_index,
     isAnonymous: o.is_anonymous,
     revealStyle: o.reveal_style ?? 'three_clues',

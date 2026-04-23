@@ -108,6 +108,18 @@ export async function POST(req: Request) {
     video_treatment: ALLOWED_VIDEO_TREATMENTS.has(video_treatment_raw)
       ? (video_treatment_raw as OrderDraft['video_treatment'])
       : null,
+    music_video_id:
+      typeof body.music_video_id === 'string' &&
+      /^[a-zA-Z0-9_-]{11}$/.test(body.music_video_id)
+        ? body.music_video_id
+        : null,
+    music_start_seconds:
+      typeof body.music_start_seconds === 'number' &&
+      Number.isFinite(body.music_start_seconds) &&
+      body.music_start_seconds >= 0 &&
+      body.music_start_seconds <= 36000
+        ? Math.floor(body.music_start_seconds)
+        : null,
   };
 
   const order = await createOrder(draft);

@@ -63,6 +63,9 @@ export type Order = {
   s3_url: string | null;
   cloudfront_url: string | null;
 
+  music_video_id: string | null;
+  music_start_seconds: number | null;
+
   love_taps: number;
   reactions: string[];
   quiz_score: number | null;
@@ -100,6 +103,8 @@ export type OrderDraft = Pick<
   | 'scratch_photo_index'
   | 'video_url'
   | 'video_treatment'
+  | 'music_video_id'
+  | 'music_start_seconds'
 >;
 
 export function amountPaiseFor(pkg: PackageId): number {

@@ -83,6 +83,9 @@ export async function createOrder(draft: OrderDraft): Promise<Order> {
     s3_url: null,
     cloudfront_url: null,
 
+    music_video_id: draft.music_video_id ?? null,
+    music_start_seconds: draft.music_start_seconds ?? null,
+
     love_taps: 0,
     reactions: [],
     quiz_score: null,

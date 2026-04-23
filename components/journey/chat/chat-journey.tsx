@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FLOWS, TEMPLATES } from '@/lib/tokens';
 import type { OrderState, TemplateDef } from '@/lib/types';
 import { Grain, Particles } from '../../particles';
+import { BackgroundMusic } from './background-music';
 import { QuestionCard } from './question-card';
 import { YesCard } from './yes-card';
 import {
@@ -15,13 +16,13 @@ import {
   SystemBubble,
   TextBubble,
   TypingDots,
-  VideoBubble,
   withAlpha,
 } from './bubbles';
 import { ChatHeader } from './chat-header';
 import { ChatComposer } from './chat-composer';
 import { LetterPopup } from './letter-popup';
 import { RevealModal } from './reveal-modal';
+import { VideoPopup } from './video-popup';
 import { buildScript, isSilentKind, sectionsFor, type ChatMessage } from './script';
 import { useChatEngine } from './use-chat-engine';
 
@@ -46,14 +47,20 @@ export function ChatJourney({
   const [revealOpen, setRevealOpen] = useState(false);
   const [letterOpen, setLetterOpen] = useState(false);
   const [letterShown, setLetterShown] = useState(false);
+  const [videoOpen, setVideoOpen] = useState(false);
+  const [videoShown, setVideoShown] = useState(false);
 
   const messages = useMemo(() => buildScript(state), [state]);
   const sections = useMemo(() => sectionsFor(state), [state]);
 
-  const engine = useChatEngine(messages, revealOpen || letterOpen);
+  const engine = useChatEngine(messages, revealOpen || letterOpen || videoOpen);
 
   const letterMsg = useMemo(
     () => messages.find((m): m is Extract<ChatMessage, { kind: 'letter' }> => m.kind === 'letter'),
+    [messages],
+  );
+  const videoMsg = useMemo(
+    () => messages.find((m): m is Extract<ChatMessage, { kind: 'video' }> => m.kind === 'video'),
     [messages],
   );
 
@@ -68,7 +75,10 @@ export function ChatJourney({
     if (last?.kind === 'letter' && !letterShown && !letterOpen) {
       setLetterOpen(true);
     }
-  }, [engine.shownMessages, letterShown, letterOpen]);
+    if (last?.kind === 'video' && !videoShown && !videoOpen) {
+      setVideoOpen(true);
+    }
+  }, [engine.shownMessages, letterShown, letterOpen, videoShown, videoOpen]);
 
   const lastShown = engine.shownMessages[engine.shownMessages.length - 1];
   const awaitingRevealTap =
@@ -121,6 +131,12 @@ export function ChatJourney({
   const handleLetterClose = () => {
     setLetterOpen(false);
     setLetterShown(true);
+    setTimeout(() => engine.advance(), 400);
+  };
+
+  const handleVideoClose = () => {
+    setVideoOpen(false);
+    setVideoShown(true);
     setTimeout(() => engine.advance(), 400);
   };
 
@@ -241,6 +257,17 @@ export function ChatJourney({
           onClose={handleLetterClose}
         />
       )}
+      {videoMsg && (
+        <VideoPopup
+          open={videoOpen}
+          poster={videoMsg.url}
+          videoUrl={videoMsg.videoUrl}
+          treatment={videoMsg.treatment}
+          toName={state.toName}
+          t={t}
+          onClose={handleVideoClose}
+        />
+      )}
       {phase === 'question' && sub && (
         <QuestionCard
           state={state}
@@ -257,6 +284,13 @@ export function ChatJourney({
           hearts={hearts}
           reactions={reactions}
           startTime={startTime}
+        />
+      )}
+      {state.musicVideoId && (
+        <BackgroundMusic
+          videoId={state.musicVideoId}
+          startSeconds={state.musicStartSeconds}
+          t={t}
         />
       )}
     </div>
@@ -292,14 +326,8 @@ function BubbleFor({
     case 'gallery':
       return <InlineGallery urls={msg.urls} layout={msg.layout} t={t} />;
     case 'video':
-      return (
-        <VideoBubble
-          url={msg.url}
-          videoUrl={msg.videoUrl}
-          treatment={msg.treatment}
-          t={t}
-        />
-      );
+      // Rendered via VideoPopup overlay — no inline bubble.
+      return null;
     case 'letter':
       // Rendered via LetterPopup overlay — no inline bubble.
       return null;

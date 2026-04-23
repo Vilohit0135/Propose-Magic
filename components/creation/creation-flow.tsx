@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import type { OrderState } from '@/lib/types';
@@ -29,6 +29,15 @@ export function CreationFlow({
     }
     setStep((s) => Math.max(s - 1, 1));
   };
+
+  // Reset scroll to top whenever the active step changes, so each step opens
+  // at its heading instead of inheriting the previous step's scroll offset.
+  // Next.js doesn't do this for state-driven transitions, only for route
+  // changes.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [step]);
 
   if (step === 5) {
     return <Step5 state={state} />;

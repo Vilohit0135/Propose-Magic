@@ -40,6 +40,14 @@ export type OrderState = {
   photoLayout: PhotoLayoutId;
   videoUrl: string | null;
   videoTreatment: VideoTreatmentId;
+  // Background song. `musicUrl` is what the sender typed (stored only during
+  // creation for UX persistence across step navigation). `musicVideoId` is
+  // what actually gets sent to the server and played on the receiver.
+  musicUrl: string;
+  musicVideoId: string | null;
+  // Seconds into the song to start the first play. Subsequent loops always
+  // restart from 0 (YouTube default loop behavior).
+  musicStartSeconds: number | null;
   scratchIndex: number | null;
   isAnonymous: boolean;
   revealStyle: RevealStyle;
