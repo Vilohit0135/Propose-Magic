@@ -12,6 +12,7 @@ import {
   ContactCardBubble,
   InlineGallery,
   PhotoBubble,
+  ReadyCheckBubble,
   SectionChip,
   SystemBubble,
   TextBubble,
@@ -49,6 +50,7 @@ export function ChatJourney({
   const [letterShown, setLetterShown] = useState(false);
   const [videoOpen, setVideoOpen] = useState(false);
   const [videoShown, setVideoShown] = useState(false);
+  const [readyConfirmed, setReadyConfirmed] = useState(false);
 
   const messages = useMemo(() => buildScript(state), [state]);
   const sections = useMemo(() => sectionsFor(state), [state]);
@@ -112,15 +114,17 @@ export function ChatJourney({
     setAutoScroll(nearBottom);
   };
 
-  // Transition out of chat when the last message (the "{toName}…" beat) has
-  // been shown and the engine reports complete.
+  // Transition out of chat only after the engine reports complete AND the
+  // receiver has tapped one of the ready-check buttons. The engine completes
+  // as soon as the ready-check bubble renders; we wait for the tap so she
+  // chooses when the question card opens.
   useEffect(() => {
-    if (engine.complete && phase === 'chat') {
-      const id = setTimeout(() => setPhase('question'), 800);
+    if (engine.complete && readyConfirmed && phase === 'chat') {
+      const id = setTimeout(() => setPhase('question'), 600);
       return () => clearTimeout(id);
     }
     return undefined;
-  }, [engine.complete, phase]);
+  }, [engine.complete, readyConfirmed, phase]);
 
   const handleRevealDone = () => {
     setIdentityRevealed(true);
@@ -196,6 +200,7 @@ export function ChatJourney({
               identityRevealed={identityRevealed}
               onReact={(emoji) => setReactions((r) => [...r, emoji])}
               onOpenReveal={() => setRevealOpen(true)}
+              onReadyConfirm={() => setReadyConfirmed(true)}
             />
           ))}
           {engine.isTyping && !isSilentKind(nextKind(messages, engine.shownMessages.length)) && (
@@ -308,6 +313,7 @@ function BubbleFor({
   msg,
   t,
   onOpenReveal,
+  onReadyConfirm,
 }: {
   msg: ChatMessage;
   state: OrderState;
@@ -315,6 +321,7 @@ function BubbleFor({
   identityRevealed: boolean;
   onReact: (emoji: string) => void;
   onOpenReveal: () => void;
+  onReadyConfirm: () => void;
 }) {
   switch (msg.kind) {
     case 'text':
@@ -331,6 +338,8 @@ function BubbleFor({
     case 'letter':
       // Rendered via LetterPopup overlay — no inline bubble.
       return null;
+    case 'ready-check':
+      return <ReadyCheckBubble t={t} onConfirm={onReadyConfirm} />;
     case 'contact-card':
       return (
         <>

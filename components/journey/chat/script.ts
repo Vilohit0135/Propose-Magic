@@ -35,7 +35,8 @@ export type ChatMessage =
       signatureName: string;
       anonSignature: boolean;
     })
-  | (Base & { kind: 'contact-card'; title: string; subtitle: string });
+  | (Base & { kind: 'contact-card'; title: string; subtitle: string })
+  | (Base & { kind: 'ready-check' });
 
 const typingFor = (chars: number) => Math.min(2500, Math.max(600, chars * 22));
 
@@ -144,7 +145,8 @@ export function buildScript(state: OrderState): ChatMessage[] {
   msgs.push(text('tension-2', 'tension', 'I love how we are right now.', 1400));
   msgs.push(text('tension-3', 'tension', "But I can't wait any longer.", 0));
 
-  // --- E. Question entry beat (chat exits after this) ---
+  // --- E. Question lead-in — a last few curiosity beats after her name lands,
+  // ending with the "are you ready?" gate before the real question card opens.
   msgs.push({
     kind: 'text',
     id: 'q-1',
@@ -153,7 +155,29 @@ export function buildScript(state: OrderState): ChatMessage[] {
     text: `${first}…`,
     italic: true,
     emphasis: true,
-    typingMs: 3000,
+    typingMs: 2800,
+    gapAfterMs: 1100,
+  });
+  msgs.push(text('q-2', 'question', 'My heart is racing right now.', 1100));
+  msgs.push(text('q-3', 'question', "I've played this moment a hundred times in my head.", 1100));
+  msgs.push(text('q-4', 'question', 'I hope I get the words right.', 900));
+  msgs.push({
+    kind: 'text',
+    id: 'q-5',
+    section: 'question',
+    from: 'them',
+    text: `${first}, are you ready for this?`,
+    italic: true,
+    emphasis: true,
+    typingMs: 2600,
+    gapAfterMs: 500,
+  });
+  msgs.push({
+    kind: 'ready-check',
+    id: 'q-ready',
+    section: 'question',
+    from: 'them',
+    typingMs: 400,
     gapAfterMs: 0,
   });
 
@@ -172,7 +196,7 @@ export function sectionsFor(state: OrderState): ChatSection[] {
 // preceded by a chat typing indicator. The letter is NOT silent — typing dots
 // for its ~2.5s typingMs give the popup an anticipatory beat before it opens.
 export function isSilentKind(kind: ChatMessage['kind'] | undefined): boolean {
-  return kind === 'chapter-title' || kind === 'gallery';
+  return kind === 'chapter-title' || kind === 'gallery' || kind === 'ready-check';
 }
 
 function text(

@@ -635,6 +635,72 @@ export function ContactCardBubble({
   );
 }
 
+export function ReadyCheckBubble({
+  t,
+  onConfirm,
+}: {
+  t: TemplateDef;
+  onConfirm: () => void;
+}) {
+  const [picked, setPicked] = useState<string | null>(null);
+  const choose = (label: string) => {
+    if (picked) return;
+    setPicked(label);
+    setTimeout(onConfirm, 450);
+  };
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: 0.1 }}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+        padding: '8px 14px 4px',
+        alignItems: 'flex-end',
+        width: '100%',
+      }}
+    >
+      {['Yes', 'Of course, yes'].map((label, i) => {
+        const isPicked = picked === label;
+        return (
+          <motion.button
+            key={label}
+            onClick={() => choose(label)}
+            disabled={!!picked}
+            initial={{ opacity: 0, x: 12, scale: 0.96 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            transition={{ duration: 0.45, delay: 0.25 + i * 0.18 }}
+            whileTap={{ scale: 0.97 }}
+            style={{
+              padding: '12px 22px',
+              borderRadius: 22,
+              border: `1px solid ${t.palette.accent}`,
+              background: isPicked
+                ? t.palette.accent
+                : withAlpha(t.palette.accent, 0.15),
+              color: isPicked ? t.palette.bg : t.palette.text,
+              fontFamily: t.fonts.body,
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: picked ? 'default' : 'pointer',
+              backdropFilter: 'blur(10px)',
+              boxShadow: `0 6px 18px ${withAlpha(t.palette.accent, 0.28)}`,
+              transition: 'background 0.2s, color 0.2s',
+              animation: picked
+                ? undefined
+                : `pulseBreath ${2.6 + i * 0.3}s infinite`,
+            }}
+          >
+            {label}
+          </motion.button>
+        );
+      })}
+    </motion.div>
+  );
+}
+
 export function SystemBubble({ text, t }: { text: string; t: TemplateDef }) {
   return (
     <div
