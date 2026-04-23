@@ -7,10 +7,15 @@ import { getMessage } from '@/lib/mock-data';
 import type { OrderState, TemplateDef } from '@/lib/types';
 import { Grain, Particles } from '../particles';
 
-// Slowly auto-scrolls a horizontal track so the receiver sees every photo
-// without needing to realize they can swipe. Pauses when she manually
-// touches/drags, resumes after a short idle window.
-function useAutoDrift(pxPerSecond = 24, resumeAfterMs = 2800) {
+// Slowly auto-scrolls a track so the receiver sees every photo without
+// needing to realize she can swipe. Pauses when she manually drags/scrolls,
+// resumes after a short idle window. Works on either axis — horizontal for
+// filmstrip/polaroid, vertical for grid.
+function useAutoDrift(
+  pxPerSecond = 24,
+  axis: 'x' | 'y' = 'x',
+  resumeAfterMs = 2800,
+) {
   const ref = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const el = ref.current;
@@ -26,16 +31,24 @@ function useAutoDrift(pxPerSecond = 24, resumeAfterMs = 2800) {
     const step = (now: number) => {
       const dt = (now - last) / 1000;
       last = now;
-      if (!paused && el.scrollWidth > el.clientWidth + 1) {
-        const delta = pxPerSecond * dt * direction;
-        el.scrollLeft += delta;
-        const max = el.scrollWidth - el.clientWidth;
-        if (el.scrollLeft >= max - 1) {
-          el.scrollLeft = max;
-          direction = -1;
-        } else if (el.scrollLeft <= 0) {
-          el.scrollLeft = 0;
-          direction = 1;
+      if (!paused) {
+        const contentSize = axis === 'x' ? el.scrollWidth : el.scrollHeight;
+        const viewSize = axis === 'x' ? el.clientWidth : el.clientHeight;
+        if (contentSize > viewSize + 1) {
+          const delta = pxPerSecond * dt * direction;
+          if (axis === 'x') el.scrollLeft += delta;
+          else el.scrollTop += delta;
+          const pos = axis === 'x' ? el.scrollLeft : el.scrollTop;
+          const max = contentSize - viewSize;
+          if (pos >= max - 1) {
+            if (axis === 'x') el.scrollLeft = max;
+            else el.scrollTop = max;
+            direction = -1;
+          } else if (pos <= 0) {
+            if (axis === 'x') el.scrollLeft = 0;
+            else el.scrollTop = 0;
+            direction = 1;
+          }
         }
       }
       raf = requestAnimationFrame(step);
@@ -61,7 +74,7 @@ function useAutoDrift(pxPerSecond = 24, resumeAfterMs = 2800) {
       el.removeEventListener('wheel', pause);
       el.removeEventListener('touchstart', pause);
     };
-  }, [pxPerSecond, resumeAfterMs]);
+  }, [pxPerSecond, axis, resumeAfterMs]);
   return ref;
 }
 
@@ -558,15 +571,21 @@ export function FilmstripLayout({ photos }: { photos: string[] }) {
 }
 
 export function GridLayout({ photos }: { photos: string[] }) {
-  const items = photos.slice(0, 6);
+  const items = photos.slice(0, 10);
+  const scrollerRef = useAutoDrift(14, 'y');
   return (
     <div
+      ref={scrollerRef}
       style={{
         display: 'grid',
         gridTemplateColumns: '1fr 1fr',
         gap: 10,
         width: '100%',
         maxWidth: 340,
+        maxHeight: 360,
+        overflowY: 'auto',
+        scrollbarWidth: 'none',
+        WebkitOverflowScrolling: 'touch',
         padding: '4px 0 10px',
       }}
     >

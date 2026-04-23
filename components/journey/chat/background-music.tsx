@@ -72,9 +72,18 @@ export function BackgroundMusic({
     setUnmuted(true);
   };
 
-  // Auto-unmute on the first user gesture anywhere in the page. The
-  // command is idempotent on the YouTube side, so we fire it once and
-  // retry a few times in case the iframe hadn't finished loading yet.
+  // Try to unmute as early as possible. Strategy:
+  //   1. On mount, optimistically fire unmute — works on Chrome desktop
+  //      when the site has a high MEI score, on Android Chrome when the
+  //      receiver arrived via a click (carried-over user activation), and
+  //      in Edge/Opera under similar conditions.
+  //   2. Listen for anything vaguely engagement-like — pointerdown, touch,
+  //      click, scroll, mousemove, wheel, keydown. The first one fires the
+  //      real unmute. iOS Safari still requires an actual tap, no way
+  //      around that — but on any other browser, casual interaction is
+  //      enough.
+  //   3. Retry for ~2s after each attempt, since the iframe often drops
+  //      commands issued before YouTube finishes loading on its side.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     let fired = false;
@@ -85,13 +94,11 @@ export function BackgroundMusic({
       command('playVideo');
     };
 
-    const onGesture = () => {
+    const fire = () => {
       if (fired) return;
       fired = true;
       attempt();
       setUnmuted(true);
-      // Retry a few times — the iframe may still be initializing on the
-      // YouTube side and silently drop early commands.
       let n = 0;
       const iv = window.setInterval(() => {
         n += 1;
@@ -100,13 +107,31 @@ export function BackgroundMusic({
       }, 250);
     };
 
-    document.addEventListener('pointerdown', onGesture);
-    document.addEventListener('touchstart', onGesture, { passive: true });
-    document.addEventListener('keydown', onGesture);
+    // Optimistic attempts. These are cheap — if the browser refuses,
+    // the audio just stays muted until the first real gesture.
+    const earlyTries: number[] = [];
+    [600, 1400, 2400].forEach((ms) => {
+      earlyTries.push(window.setTimeout(attempt, ms));
+    });
+
+    const events: Array<[keyof DocumentEventMap, AddEventListenerOptions?]> = [
+      ['pointerdown'],
+      ['touchstart', { passive: true }],
+      ['click'],
+      ['keydown'],
+      ['mousemove'],
+      ['wheel', { passive: true }],
+      ['scroll', { passive: true, capture: true }],
+    ];
+    events.forEach(([name, opts]) =>
+      document.addEventListener(name, fire, opts),
+    );
+
     return () => {
-      document.removeEventListener('pointerdown', onGesture);
-      document.removeEventListener('touchstart', onGesture);
-      document.removeEventListener('keydown', onGesture);
+      earlyTries.forEach((id) => window.clearTimeout(id));
+      events.forEach(([name, opts]) =>
+        document.removeEventListener(name, fire, opts),
+      );
     };
   }, []);
 

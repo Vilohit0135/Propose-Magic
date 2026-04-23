@@ -76,13 +76,13 @@ export function QuestionCard({
           transition={{ duration: 0.7, delay: 0.35 }}
           style={{
             position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
+            top: 12,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: 64,
             height: 3,
+            borderRadius: 99,
             background: `linear-gradient(90deg, ${t.palette.accent}, ${t.palette.accent2})`,
-            borderTopLeftRadius: 26,
-            borderTopRightRadius: 26,
           }}
         />
 
