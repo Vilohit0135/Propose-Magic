@@ -110,22 +110,6 @@ export function RevealModal({
         </div>
         <Grain />
 
-        <motion.div
-          initial={{ scaleX: 0 }}
-          animate={{ scaleX: 1 }}
-          transition={{ duration: 0.7, delay: 0.3 }}
-          style={{
-            position: 'absolute',
-            top: 12,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            width: 64,
-            height: 3,
-            borderRadius: 99,
-            background: `linear-gradient(90deg, ${t.palette.accent}, ${t.palette.accent2})`,
-          }}
-        />
-
         <div style={{ position: 'relative', zIndex: 5 }}>
           {phase === 'intro' && <IntroPhase t={t} />}
           {phase === 'quiz' && (
