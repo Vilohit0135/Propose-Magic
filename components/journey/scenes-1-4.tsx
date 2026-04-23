@@ -62,17 +62,33 @@ function useAutoDrift(
       }, resumeAfterMs);
     };
 
-    el.addEventListener('pointerdown', pause);
+    // Only pause when the user actually *moves* the scroll position. The
+    // old touchstart listener was firing on every finger-on-glass on
+    // mobile — including when the user was scrolling the chat vertically
+    // with a finger resting on a photo — so the strip was permanently
+    // paused on phones. The scroll event fires for drag/wheel/trackpad
+    // equally and gives us the real delta, which is what we want.
+    let lastPos = axis === 'x' ? el.scrollLeft : el.scrollTop;
+    // Any delta per scroll event bigger than ~3 frames' worth of drift is
+    // clearly user-driven. Our RAF only shifts fractions of a pixel per
+    // frame and browsers coalesce those into sub-pixel scroll events, so
+    // this threshold is safely above the noise floor.
+    const userDragThreshold = (pxPerSecond / 60) * 4 + 2;
+    const maybePauseFromScroll = () => {
+      const pos = axis === 'x' ? el.scrollLeft : el.scrollTop;
+      if (Math.abs(pos - lastPos) > userDragThreshold) pause();
+      lastPos = pos;
+    };
+
     el.addEventListener('wheel', pause, { passive: true });
-    el.addEventListener('touchstart', pause, { passive: true });
+    el.addEventListener('scroll', maybePauseFromScroll, { passive: true });
 
     raf = requestAnimationFrame(step);
     return () => {
       cancelAnimationFrame(raf);
       if (resumeTimer) window.clearTimeout(resumeTimer);
-      el.removeEventListener('pointerdown', pause);
       el.removeEventListener('wheel', pause);
-      el.removeEventListener('touchstart', pause);
+      el.removeEventListener('scroll', maybePauseFromScroll);
     };
   }, [pxPerSecond, axis, resumeAfterMs]);
   return ref;

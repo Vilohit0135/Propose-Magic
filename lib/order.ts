@@ -109,6 +109,7 @@ export type OrderDraft = Pick<
   | 'photo_layout'
   | 'scratch_photo_index'
   | 'video_url'
+  | 'video_clip_urls'
   | 'video_treatment'
   | 'music_video_id'
   | 'music_start_seconds'

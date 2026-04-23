@@ -15,7 +15,15 @@ export function orderToState(o: Order): OrderState {
     package: o.package_type,
     photos: o.photo_urls ?? [],
     photoLayout: o.photo_layout ?? 'polaroid',
-    videoUrl: o.video_url,
+    // videos[] is the canonical multi-clip list stored in video_clip_urls.
+    // Legacy single videoUrl is kept as videos[0] (or null) for any code
+    // path that still reads it.
+    videos: o.video_clip_urls?.length
+      ? o.video_clip_urls
+      : o.video_url
+        ? [o.video_url]
+        : [],
+    videoUrl: o.video_clip_urls?.[0] ?? o.video_url,
     videoTreatment: o.video_treatment ?? 'letterbox',
     musicUrl: o.music_video_id
       ? `https://www.youtube.com/watch?v=${o.music_video_id}${

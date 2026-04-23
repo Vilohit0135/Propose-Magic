@@ -17,6 +17,7 @@ const INITIAL: OrderState = {
   package: 'basic',
   photos: [],
   photoLayout: 'polaroid',
+  videos: [],
   videoUrl: null,
   videoTreatment: 'letterbox',
   musicUrl: '',

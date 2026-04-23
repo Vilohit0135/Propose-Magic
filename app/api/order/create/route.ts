@@ -105,6 +105,13 @@ export async function POST(req: Request) {
       typeof body.video_url === 'string' && body.video_url.trim()
         ? body.video_url.trim().slice(0, 2000)
         : null,
+    video_clip_urls: Array.isArray(body.video_clip_urls)
+      ? (body.video_clip_urls as unknown[])
+          .filter((u): u is string => typeof u === 'string')
+          .map((u) => u.trim())
+          .filter((u) => u.length > 0 && u.length <= 2000)
+          .slice(0, 5)
+      : [],
     video_treatment: ALLOWED_VIDEO_TREATMENTS.has(video_treatment_raw)
       ? (video_treatment_raw as OrderDraft['video_treatment'])
       : null,

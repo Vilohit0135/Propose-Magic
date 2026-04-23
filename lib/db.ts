@@ -144,7 +144,7 @@ function buildOrder(draft: OrderDraft, shortId: string): Order {
     photo_layout: draft.photo_layout,
     scratch_photo_index: draft.scratch_photo_index ?? null,
     video_url: draft.video_url ?? null,
-    video_clip_urls: [],
+    video_clip_urls: draft.video_clip_urls ?? [],
     video_timestamps: null,
     video_treatment: draft.video_treatment,
 

@@ -72,15 +72,33 @@ export function YesCard({
     setSaveBusy(true);
     try {
       const { toPng } = await import('html-to-image');
+      // skipFonts: true dodges the cross-origin cssRules error from Google
+      // Fonts that was silently killing the export. The PNG renders with
+      // system font fallbacks but actually saves reliably across browsers.
+      // filter: strips <link> tags from the cloned subtree so remote
+      // stylesheet fetches don't block serialization either.
       const dataUrl = await toPng(cardRef.current, {
         pixelRatio: 2,
         cacheBust: true,
+        skipFonts: true,
         backgroundColor: t.palette.bg,
+        filter: (node) => {
+          if (node instanceof HTMLElement) {
+            if (node.tagName === 'LINK') return false;
+            if (node.tagName === 'STYLE' && node.innerHTML.includes('@import')) {
+              return false;
+            }
+          }
+          return true;
+        },
       });
       const link = document.createElement('a');
       link.download = `${firstTo}-said-yes.png`;
       link.href = dataUrl;
+      // Some browsers require the anchor to be in the DOM to trigger download.
+      document.body.appendChild(link);
       link.click();
+      document.body.removeChild(link);
     } catch (err) {
       console.error('[YesCard] save image failed', err);
       setShareHint("Couldn't save — try a screenshot");

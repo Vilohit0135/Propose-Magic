@@ -28,7 +28,11 @@ function orderStateToPayload(s: OrderState) {
     photo_captions: [],
     photo_layout: s.package === 'basic' ? null : s.photoLayout,
     scratch_photo_index: s.scratchIndex,
-    video_url: s.package === 'photos_video' ? s.videoUrl : null,
+    // Send the whole clips list to video_clip_urls; keep video_url as the
+    // first clip so legacy reads still see *something*. Both columns already
+    // exist on the orders table.
+    video_url: s.package === 'photos_video' ? (s.videos[0] ?? null) : null,
+    video_clip_urls: s.package === 'photos_video' ? s.videos : [],
     video_treatment: s.package === 'photos_video' ? s.videoTreatment : null,
     music_video_id: s.musicVideoId,
     music_start_seconds: s.musicStartSeconds,

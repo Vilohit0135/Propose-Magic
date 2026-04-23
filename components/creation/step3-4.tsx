@@ -607,26 +607,92 @@ function VideoUploadSection({
   setState: SetState;
 }) {
   const [uploading, setUploading] = useState(false);
-  const [progressPct, setProgressPct] = useState(0);
+  const [progress, setProgress] = useState<{ current: number; total: number; pct: number }>({
+    current: 0,
+    total: 0,
+    pct: 0,
+  });
   const [error, setError] = useState<string | null>(null);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
 
-  const MAX_MB = 50;
-  const MAX_BYTES = MAX_MB * 1024 * 1024;
+  const MAX_CLIPS = 5;
+  const MAX_MB_PER_CLIP = 50;
+  const MAX_BYTES_PER_CLIP = MAX_MB_PER_CLIP * 1024 * 1024;
 
-  const handleFile = async (file: File) => {
+  const uploadOne = async (
+    file: File,
+    sign: {
+      cloudName: string;
+      apiKey: string;
+      timestamp: number;
+      folder: string;
+      signature: string;
+    },
+    onProgress: (pct: number) => void,
+  ): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `https://api.cloudinary.com/v1_1/${sign.cloudName}/video/upload`);
+      xhr.upload.onprogress = (ev) => {
+        if (ev.lengthComputable) onProgress(Math.round((ev.loaded / ev.total) * 100));
+      };
+      xhr.onload = () => {
+        if (xhr.status < 200 || xhr.status >= 300) {
+          reject(new Error(`upload_failed_${xhr.status}`));
+          return;
+        }
+        try {
+          const data = JSON.parse(xhr.responseText) as { secure_url?: string };
+          if (!data.secure_url) {
+            reject(new Error('no_url'));
+            return;
+          }
+          resolve(data.secure_url);
+        } catch {
+          reject(new Error('bad_response'));
+        }
+      };
+      xhr.onerror = () => reject(new Error('network_error'));
+
+      const form = new FormData();
+      form.append('file', file);
+      form.append('api_key', sign.apiKey);
+      form.append('timestamp', String(sign.timestamp));
+      form.append('folder', sign.folder);
+      form.append('signature', sign.signature);
+      xhr.send(form);
+    });
+  };
+
+  const handleFiles = async (rawFiles: FileList) => {
     setError(null);
-    if (!file.type.startsWith('video/')) {
-      setError('That file is not a video.');
+    const already = state.videos.length;
+    const remainingSlots = MAX_CLIPS - already;
+    if (remainingSlots <= 0) {
+      setError(`You already have ${MAX_CLIPS} clips — remove one to add another.`);
       return;
     }
-    if (file.size > MAX_BYTES) {
-      setError(`Video is over ${MAX_MB}MB. Pick a shorter clip or compress first.`);
-      return;
+    const files = Array.from(rawFiles).slice(0, remainingSlots);
+
+    // Pre-validate before we start uploading. Doing both the type and size
+    // check up front means we fail the whole batch cleanly instead of
+    // landing 2 clips and erroring on the 3rd.
+    for (const f of files) {
+      if (!f.type.startsWith('video/')) {
+        setError(`"${f.name}" isn't a video.`);
+        return;
+      }
+      if (f.size > MAX_BYTES_PER_CLIP) {
+        const mb = Math.round(f.size / (1024 * 1024));
+        setError(
+          `"${f.name}" is ${mb}MB — each clip must be under ${MAX_MB_PER_CLIP}MB.`,
+        );
+        return;
+      }
     }
 
     setUploading(true);
-    setProgressPct(0);
+    setProgress({ current: 0, total: files.length, pct: 0 });
     try {
       const signResp = await fetch('/api/cloudinary/sign', { method: 'POST' });
       if (!signResp.ok) {
@@ -645,46 +711,19 @@ function VideoUploadSection({
         signature: string;
       };
 
-      // XHR for upload progress — fetch doesn't expose it natively.
-      const secureUrl: string = await new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open(
-          'POST',
-          `https://api.cloudinary.com/v1_1/${sign.cloudName}/video/upload`,
+      const uploaded: string[] = [];
+      for (let i = 0; i < files.length; i += 1) {
+        setProgress({ current: i + 1, total: files.length, pct: 0 });
+        const url = await uploadOne(files[i], sign, (pct) =>
+          setProgress({ current: i + 1, total: files.length, pct }),
         );
-        xhr.upload.onprogress = (ev) => {
-          if (ev.lengthComputable) {
-            setProgressPct(Math.round((ev.loaded / ev.total) * 100));
-          }
-        };
-        xhr.onload = () => {
-          if (xhr.status < 200 || xhr.status >= 300) {
-            reject(new Error(`upload_failed_${xhr.status}`));
-            return;
-          }
-          try {
-            const data = JSON.parse(xhr.responseText) as { secure_url?: string };
-            if (!data.secure_url) {
-              reject(new Error('no_url'));
-              return;
-            }
-            resolve(data.secure_url);
-          } catch {
-            reject(new Error('bad_response'));
-          }
-        };
-        xhr.onerror = () => reject(new Error('network_error'));
+        uploaded.push(url);
+      }
 
-        const form = new FormData();
-        form.append('file', file);
-        form.append('api_key', sign.apiKey);
-        form.append('timestamp', String(sign.timestamp));
-        form.append('folder', sign.folder);
-        form.append('signature', sign.signature);
-        xhr.send(form);
-      });
-
-      setState((s) => ({ ...s, videoUrl: secureUrl }));
+      setState((s) => ({
+        ...s,
+        videos: [...s.videos, ...uploaded].slice(0, MAX_CLIPS),
+      }));
     } catch (err) {
       console.error('[video upload]', err);
       setError(
@@ -694,124 +733,184 @@ function VideoUploadSection({
       );
     } finally {
       setUploading(false);
-      setProgressPct(0);
+      setProgress({ current: 0, total: 0, pct: 0 });
     }
   };
 
-  const clearVideo = () => {
-    setState((s) => ({ ...s, videoUrl: null }));
+  const removeClip = (idx: number) => {
+    setState((s) => ({
+      ...s,
+      videos: s.videos.filter((_, i) => i !== idx),
+    }));
   };
 
   return (
     <div>
-      <SectionLabel>Your Video</SectionLabel>
+      <SectionLabel>Your Video reel</SectionLabel>
       <VideoTemplateHint state={state} />
-      {state.videoUrl ? (
-        <div
-          style={{
-            position: 'relative',
-            borderRadius: 12,
-            overflow: 'hidden',
-            background: '#000',
-            border: '1px solid #eee',
-            aspectRatio: '16 / 9',
-          }}
-        >
-          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-          <video
-            src={state.videoUrl}
-            controls
-            playsInline
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+          gap: 8,
+          marginTop: 4,
+        }}
+      >
+        {state.videos.map((url, i) => (
+          <div
+            key={url + i}
             style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              display: 'block',
-            }}
-          />
-          <button
-            onClick={clearVideo}
-            aria-label="Remove video"
-            style={{
-              position: 'absolute',
-              top: 8,
-              right: 8,
-              width: 28,
-              height: 28,
-              borderRadius: 99,
-              border: 'none',
-              background: 'rgba(0,0,0,0.6)',
-              color: '#fff',
-              fontSize: 14,
-              cursor: 'pointer',
-              backdropFilter: 'blur(4px)',
+              position: 'relative',
+              aspectRatio: '9 / 16',
+              borderRadius: 10,
+              overflow: 'hidden',
+              background: '#000',
+              border: '1px solid #eee',
             }}
           >
-            ×
+            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+            <video
+              src={url}
+              playsInline
+              muted
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                display: 'block',
+              }}
+              onMouseEnter={(e) => void (e.currentTarget as HTMLVideoElement).play().catch(() => {})}
+              onMouseLeave={(e) => (e.currentTarget as HTMLVideoElement).pause()}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                top: 6,
+                left: 6,
+                padding: '2px 6px',
+                fontSize: 10,
+                fontWeight: 700,
+                borderRadius: 99,
+                background: 'rgba(0,0,0,0.55)',
+                color: '#fff',
+                backdropFilter: 'blur(4px)',
+              }}
+            >
+              {i + 1}
+            </div>
+            <button
+              onClick={() => removeClip(i)}
+              aria-label={`Remove clip ${i + 1}`}
+              style={{
+                position: 'absolute',
+                top: 6,
+                right: 6,
+                width: 24,
+                height: 24,
+                borderRadius: 99,
+                border: 'none',
+                background: 'rgba(0,0,0,0.7)',
+                color: '#fff',
+                fontSize: 12,
+                cursor: 'pointer',
+                backdropFilter: 'blur(4px)',
+              }}
+            >
+              ×
+            </button>
+          </div>
+        ))}
+
+        {state.videos.length < MAX_CLIPS && (
+          <button
+            onClick={() => inputRef.current?.click()}
+            disabled={uploading}
+            style={{
+              aspectRatio: '9 / 16',
+              border: '2px dashed #c9748a',
+              borderRadius: 10,
+              background: uploading ? '#f9e5eb' : '#fff5f7',
+              color: '#c9748a',
+              cursor: uploading ? 'wait' : 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 4,
+              fontFamily: 'inherit',
+              position: 'relative',
+              overflow: 'hidden',
+              padding: 8,
+              textAlign: 'center',
+            }}
+          >
+            {uploading ? (
+              <>
+                <div style={{ fontSize: 18 }}>…</div>
+                <div style={{ fontSize: 10, fontWeight: 600, lineHeight: 1.3 }}>
+                  {progress.total > 1
+                    ? `Clip ${progress.current} / ${progress.total}`
+                    : 'Uploading'}
+                  <br />
+                  {progress.pct}%
+                </div>
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    bottom: 0,
+                    height: 3,
+                    width: `${progress.pct}%`,
+                    background: '#c9748a',
+                    transition: 'width 0.2s',
+                  }}
+                />
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 22 }}>＋</div>
+                <div style={{ fontSize: 11, fontWeight: 700 }}>
+                  {state.videos.length === 0 ? 'ADD VIDEOS' : 'ADD MORE'}
+                </div>
+                <div style={{ fontSize: 9, opacity: 0.75, lineHeight: 1.3 }}>
+                  up to {MAX_CLIPS} clips
+                  <br />
+                  ≤{MAX_MB_PER_CLIP}MB each
+                </div>
+              </>
+            )}
           </button>
-        </div>
-      ) : (
-        <button
-          onClick={() => inputRef.current?.click()}
-          disabled={uploading}
-          style={{
-            width: '100%',
-            aspectRatio: '16 / 9',
-            border: '2px dashed #c9748a',
-            borderRadius: 12,
-            background: uploading ? '#f9e5eb' : '#fff5f7',
-            color: '#c9748a',
-            cursor: uploading ? 'wait' : 'pointer',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 4,
-            fontFamily: 'inherit',
-            position: 'relative',
-            overflow: 'hidden',
-          }}
-        >
-          {uploading ? (
-            <>
-              <div style={{ fontSize: 22 }}>…</div>
-              <div style={{ fontSize: 11, fontWeight: 600 }}>
-                Uploading {progressPct}%
-              </div>
-              <div
-                style={{
-                  position: 'absolute',
-                  left: 0,
-                  bottom: 0,
-                  height: 3,
-                  width: `${progressPct}%`,
-                  background: '#c9748a',
-                  transition: 'width 0.2s',
-                }}
-              />
-            </>
-          ) : (
-            <>
-              <div style={{ fontSize: 28 }}>▶</div>
-              <div style={{ fontSize: 13, fontWeight: 600 }}>ADD YOUR VIDEO</div>
-              <div style={{ fontSize: 11, opacity: 0.75 }}>
-                MP4 recommended · up to {MAX_MB}MB
-              </div>
-            </>
-          )}
-        </button>
-      )}
+        )}
+      </div>
+
       <input
         ref={inputRef}
         type="file"
         accept="video/*"
+        multiple
         style={{ display: 'none' }}
         onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) void handleFile(file);
+          if (e.target.files && e.target.files.length) {
+            void handleFiles(e.target.files);
+          }
           e.target.value = '';
         }}
       />
+
+      <div
+        style={{
+          marginTop: 8,
+          fontSize: 11,
+          color: '#888',
+          lineHeight: 1.5,
+        }}
+      >
+        She&apos;ll see them as a little reel — stacked vertically, auto-playing
+        in order, with your names on the handle. Up to {MAX_CLIPS} clips, each
+        under {MAX_MB_PER_CLIP}MB.
+      </div>
+
       {error && (
         <div
           style={{

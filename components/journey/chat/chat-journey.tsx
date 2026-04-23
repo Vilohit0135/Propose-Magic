@@ -267,7 +267,9 @@ export function ChatJourney({
           open={videoOpen}
           poster={videoMsg.url}
           videoUrl={videoMsg.videoUrl}
+          videoUrls={videoMsg.videoUrls}
           treatment={videoMsg.treatment}
+          fromName={state.fromName}
           toName={state.toName}
           t={t}
           onClose={handleVideoClose}

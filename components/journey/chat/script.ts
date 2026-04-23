@@ -26,7 +26,8 @@ export type ChatMessage =
   | (Base & {
       kind: 'video';
       url: string; // poster / still image (photo URL fallback)
-      videoUrl: string | null; // actual playable video URL, if uploaded
+      videoUrl: string | null; // first clip, kept for legacy callers
+      videoUrls: string[]; // full reel (up to 5 clips) — played in sequence
       treatment: VideoTreatmentId;
     })
   | (Base & {
@@ -126,13 +127,15 @@ export function buildScript(state: OrderState): ChatMessage[] {
 
   if (hasVideo) {
     const videoStill = state.photos[2] || state.photos[0] || DEMO_PHOTOS[3];
+    const urls = state.videos.length ? state.videos : state.videoUrl ? [state.videoUrl] : [];
     msgs.push({
       kind: 'video',
       id: 'video-1',
       section: 'letter',
       from: 'them',
       url: videoStill,
-      videoUrl: state.videoUrl ?? null,
+      videoUrl: urls[0] ?? null,
+      videoUrls: urls,
       treatment: state.videoTreatment || 'letterbox',
       typingMs: 800,
       gapAfterMs: 0,

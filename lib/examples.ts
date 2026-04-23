@@ -24,6 +24,7 @@ function makeState(overrides: Partial<OrderState>): OrderState {
     package: 'photos',
     photos: DEMO_PHOTOS.slice(0, 6),
     photoLayout: 'polaroid',
+    videos: [],
     videoUrl: null,
     videoTreatment: 'letterbox',
     musicUrl: '',

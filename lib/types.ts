@@ -38,6 +38,10 @@ export type OrderState = {
   package: PackageId;
   photos: string[];
   photoLayout: PhotoLayoutId;
+  // Up to 5 short clips (each ≤ 50MB). First one is used by legacy single-
+  // video code paths that still read videoUrl. New reel popup plays them in
+  // sequence with Instagram-style chrome.
+  videos: string[];
   videoUrl: string | null;
   videoTreatment: VideoTreatmentId;
   // Background song. `musicUrl` is what the sender typed (stored only during
