@@ -166,30 +166,42 @@ export function LetterPopup({
                     justifyContent: 'center',
                   }}
                 >
-                  {['😍', '🥹', '💕', '😭', '🤗'].map((e) => (
-                    <button
-                      key={e}
-                      onClick={() => handleReact(e)}
-                      aria-label={`React ${e}`}
-                      style={{
-                        width: 42,
-                        height: 42,
-                        borderRadius: 99,
-                        border: `1px solid ${withAlpha(t.palette.text, 0.12)}`,
-                        background:
-                          picked === e
-                            ? withAlpha(t.palette.accent, 0.25)
+                  {['😍', '🥹', '💕', '😭', '🤗'].map((e) => {
+                    const isPicked = picked === e;
+                    const dimOthers = !!picked && !isPicked;
+                    return (
+                      <button
+                        key={e}
+                        onClick={() => handleReact(e)}
+                        aria-label={`React ${e}`}
+                        style={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: 99,
+                          border: `1px solid ${
+                            isPicked
+                              ? t.palette.accent
+                              : withAlpha(t.palette.text, 0.12)
+                          }`,
+                          background: isPicked
+                            ? t.palette.accent
                             : withAlpha(t.palette.accent2, 0.08),
-                        fontSize: 20,
-                        cursor: 'pointer',
-                        transform: picked === e ? 'scale(1.15)' : 'scale(1)',
-                        transition: 'background 0.2s, transform 0.2s',
-                        backdropFilter: 'blur(6px)',
-                      }}
-                    >
-                      {e}
-                    </button>
-                  ))}
+                          fontSize: 22,
+                          cursor: 'pointer',
+                          transform: isPicked ? 'scale(1.3)' : 'scale(1)',
+                          transition:
+                            'background 0.25s, transform 0.25s, opacity 0.25s, box-shadow 0.25s',
+                          backdropFilter: 'blur(6px)',
+                          opacity: dimOthers ? 0.35 : 1,
+                          boxShadow: isPicked
+                            ? `0 0 0 3px ${withAlpha(t.palette.accent, 0.35)}, 0 8px 22px ${withAlpha(t.palette.accent, 0.55)}`
+                            : 'none',
+                        }}
+                      >
+                        {e}
+                      </button>
+                    );
+                  })}
                 </div>
                 <button
                   onClick={onClose}

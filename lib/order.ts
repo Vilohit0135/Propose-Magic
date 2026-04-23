@@ -18,7 +18,12 @@ export type OrderStatus =
   | 'PAID'
   | 'GENERATING'
   | 'COMPLETED'
-  | 'FAILED';
+  | 'FAILED'
+  | 'EXPIRED';
+
+// Receiver links are live for this window from created_at, then PII + media
+// is wiped. Kept as a named constant so API + receiver + cron all agree.
+export const ORDER_TTL_MS = 48 * 60 * 60 * 1000;
 
 export type Order = {
   id: string;
@@ -79,6 +84,8 @@ export type Order = {
 
   created_at: string;
   completed_at: string | null;
+  expires_at: string;
+  expired_at: string | null;
 };
 
 export type OrderDraft = Pick<

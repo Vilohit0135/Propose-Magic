@@ -46,7 +46,9 @@ export function RevealModal({
   const submit = (correct: boolean) => {
     if (!correct) {
       setWrong(true);
-      setTimeout(() => setWrong(false), 600);
+      // Keep the "Not quite" hint up long enough to actually read — the old
+      // 600ms disappeared before the shake animation even finished.
+      setTimeout(() => setWrong(false), 2000);
       return;
     }
     const nextAns = [...answers, true];

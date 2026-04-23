@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'motion/react';
 import type { OrderState, SubFlow, TemplateDef } from '@/lib/types';
@@ -23,6 +23,9 @@ export function YesCard({
 }) {
   const [showCTA, setShowCTA] = useState(false);
   const [showReply, setShowReply] = useState(false);
+  const [shareHint, setShareHint] = useState<string | null>(null);
+  const [saveBusy, setSaveBusy] = useState(false);
+  const cardRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const t1 = setTimeout(() => setShowCTA(true), 1800);
     const t2 = setTimeout(() => setShowReply(true), 3600);
@@ -34,7 +37,58 @@ export function YesCard({
 
   const mins = Math.max(1, Math.round((Date.now() - startTime) / 60000));
   const firstTo = state.toName.trim().split(/\s+/)[0] || 'they';
+  const firstFrom = state.fromName.trim().split(/\s+/)[0] || 'someone';
   const headline = `${firstTo} said YES! ${sub.particle}`;
+
+  // Native share → system sheet on mobile, fall back to copying the URL.
+  // Using the current page URL (not a synthetic link) so whoever opens the
+  // shared link lands on exactly this receiver page.
+  const handleShare = async () => {
+    if (typeof window === 'undefined') return;
+    const url = window.location.href;
+    const title = `${firstTo} said yes`;
+    const text = `${firstTo} said YES to ${firstFrom} ${sub.particle}`;
+    try {
+      if (typeof navigator.share === 'function') {
+        await navigator.share({ title, text, url });
+        return;
+      }
+    } catch {
+      // User dismissed the share sheet — don't treat as error.
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareHint('Link copied');
+      setTimeout(() => setShareHint(null), 2000);
+    } catch {
+      setShareHint("Couldn't copy — long-press the URL bar instead");
+      setTimeout(() => setShareHint(null), 2500);
+    }
+  };
+
+  const handleSaveImage = async () => {
+    if (!cardRef.current || saveBusy) return;
+    setSaveBusy(true);
+    try {
+      const { toPng } = await import('html-to-image');
+      const dataUrl = await toPng(cardRef.current, {
+        pixelRatio: 2,
+        cacheBust: true,
+        backgroundColor: t.palette.bg,
+      });
+      const link = document.createElement('a');
+      link.download = `${firstTo}-said-yes.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (err) {
+      console.error('[YesCard] save image failed', err);
+      setShareHint("Couldn't save — try a screenshot");
+      setTimeout(() => setShareHint(null), 2500);
+    } finally {
+      setSaveBusy(false);
+    }
+  };
 
   return (
     <motion.div
@@ -57,6 +111,7 @@ export function YesCard({
     >
       <Confetti t={t} />
       <motion.div
+        ref={cardRef}
         initial={{ opacity: 0, scale: 0.85, y: 24 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 170, damping: 22, delay: 0.15 }}
@@ -157,6 +212,7 @@ export function YesCard({
             }}
           >
             <button
+              onClick={handleShare}
               style={{
                 padding: '14px 20px',
                 borderRadius: 99,
@@ -173,6 +229,8 @@ export function YesCard({
               Share this moment →
             </button>
             <button
+              onClick={handleSaveImage}
+              disabled={saveBusy}
               style={{
                 padding: '12px 20px',
                 borderRadius: 99,
@@ -180,12 +238,26 @@ export function YesCard({
                 background: withAlpha(t.palette.text, 0.04),
                 color: t.palette.text,
                 fontSize: 13,
-                cursor: 'pointer',
+                cursor: saveBusy ? 'default' : 'pointer',
+                opacity: saveBusy ? 0.6 : 1,
                 fontFamily: t.fonts.body,
               }}
             >
-              Save as image
+              {saveBusy ? 'Saving…' : 'Save as image'}
             </button>
+            {shareHint && (
+              <div
+                style={{
+                  fontSize: 11,
+                  color: t.palette.muted,
+                  textAlign: 'center',
+                  marginTop: -2,
+                  fontFamily: t.fonts.body,
+                }}
+              >
+                {shareHint}
+              </div>
+            )}
           </motion.div>
         )}
 

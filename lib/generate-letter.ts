@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { callGemini } from './gemini';
 import { getMessage } from './mock-data';
 import type { Gender, ToneId } from './types';
 
@@ -14,11 +14,9 @@ export type LetterContext = {
   isAnonymous: boolean;
 };
 
-// A long, stable system prompt is the right shape for prefix caching —
-// identical across requests that share a tone/flow, keeps volatile context
-// (names, story) in the user turn. Haiku 4.5's minimum cacheable prefix is
-// 4096 tokens, so caching may not activate at every size; harmless if it
-// doesn't, the API silently charges full price with no error.
+// A long, stable system prompt is the right shape for Gemini's implicit
+// prefix caching — identical across requests that share a tone/flow, keeps
+// volatile context (names, story) in the user turn.
 const SYSTEM_PROMPT = `You write personal, heartfelt letters for a proposal moment.
 
 The letter you write is read by ONE person — the recipient — on a web page that builds emotionally toward a proposal. Your job is to produce the BODY of the letter in the sender's voice so it reads like the sender actually wrote it, not a template.
@@ -87,41 +85,24 @@ The recipient will be solving a small quiz to discover the sender's identity lat
 Begin the letter now. Output only the letter body as described in the hard format rules.`;
 
 export async function generateLetter(ctx: LetterContext): Promise<string> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return fallback(ctx);
+  if (!process.env.GEMINI_API_KEY) return fallback(ctx);
 
-  try {
-    const client = new Anthropic({ apiKey });
-    const response = await client.messages.create({
-      model: 'claude-haiku-4-5',
-      max_tokens: 600,
-      system: [
-        {
-          type: 'text',
-          text: SYSTEM_PROMPT,
-          cache_control: { type: 'ephemeral' },
-        },
-      ],
-      messages: [
-        {
-          role: 'user',
-          content: buildUserMessage(ctx),
-        },
-      ],
+  // 1200 leaves ~600-700 tokens for letter text after 2.5 Flash's internal
+  // thinking budget. A 4-6 sentence romantic letter is typically ~180-250
+  // tokens, so there's generous slack.
+  const result = await callGemini(SYSTEM_PROMPT, buildUserMessage(ctx), {
+    maxOutputTokens: 1200,
+    temperature: 0.85,
+  });
+
+  if (!result.ok) {
+    console.error('[generateLetter] Gemini call failed, falling back to mock:', {
+      status: result.status,
+      error: result.error,
     });
-
-    const text = response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-      .map((b) => b.text)
-      .join('\n')
-      .trim();
-
-    if (!text) return fallback(ctx);
-    return stripStraySignature(text, ctx.fromName);
-  } catch (err) {
-    console.error('[generateLetter] Claude call failed, falling back to mock:', err);
     return fallback(ctx);
   }
+  return stripStraySignature(result.text, ctx.fromName);
 }
 
 function fallback(ctx: LetterContext): string {

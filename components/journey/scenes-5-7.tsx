@@ -536,21 +536,41 @@ export function TriviaQuiz({
   customQuestions?: { q: string; choices: string[]; correct: number }[];
   t: TemplateDef;
 }) {
+  // Defaults framed as personality gut-checks — since the receiver doesn't
+  // know who the sender is yet, a "what colour was the shirt" question is
+  // unfair. Instead every question probes the *kind of person* behind the
+  // letter. All four options are emotionally plausible, so wrong answers
+  // still feel like reasonable guesses rather than trick questions.
   const defaults: { q: string; choices: string[]; correct: number }[] = [
     {
-      q: 'What did I wear the first time we met?',
-      choices: ['Blue shirt', 'Black hoodie', 'White tee', 'A smile'],
-      correct: 3,
-    },
-    {
-      q: 'Our favourite song starts with…',
-      choices: ['A piano', 'A guitar riff', 'Silence', 'Rain'],
+      q: 'When I wrote this letter, I was probably…',
+      choices: [
+        'rehearsing every word',
+        'writing in one breath',
+        'deleting and restarting',
+        'trying not to cry',
+      ],
       correct: 0,
     },
     {
-      q: "What do I call you when nobody's listening?",
-      choices: ['Cutie', 'Jaan', 'Love', 'Nonsense'],
-      correct: 1,
+      q: "How long have I been holding this in, do you think?",
+      choices: [
+        'a few weeks',
+        'months',
+        "longer than I'd like to admit",
+        'since the day we met',
+      ],
+      correct: 2,
+    },
+    {
+      q: 'When you read this, who comes to mind first?',
+      choices: [
+        'someone unexpected',
+        'someone you already love',
+        "someone you've been pretending not to notice",
+        'someone who has always been there',
+      ],
+      correct: 2,
     },
   ];
   const pool =
@@ -607,21 +627,39 @@ export function SensoryQuiz({
   customQuestions?: { q: string; choices: string[]; correct: number }[];
   t: TemplateDef;
 }) {
+  // Sensory defaults frame the sender through atmosphere rather than
+  // specific memories. Each option is evocative enough to "feel" without
+  // needing the receiver to remember a concrete shared event.
   const defaults: { q: string; choices: string[]; correct: number }[] = [
     {
-      q: 'Pick a colour that reminds you of love',
-      choices: ['Deep red', 'Warm amber', 'Soft lavender', 'Cream'],
-      correct: 0,
+      q: 'Pick the colour this moment feels like',
+      choices: [
+        'deep red — intense',
+        'warm amber — safe',
+        'soft lavender — quiet',
+        'cream — slow',
+      ],
+      correct: 1,
     },
     {
-      q: 'Pick a song that fits this moment',
-      choices: ['🎹 slow piano', '🎸 soft strum', '🌧️ rain sounds', '🎻 strings'],
-      correct: 0,
+      q: "Pick the sound you'd hear in the background of this letter",
+      choices: [
+        'slow piano',
+        'a heartbeat',
+        'rain on a window',
+        'someone breathing close',
+      ],
+      correct: 3,
     },
     {
-      q: 'First memory that comes to mind?',
-      choices: ['a late-night drive', 'the first hug', 'laughing too hard', 'walking in the rain'],
-      correct: 0,
+      q: 'What kind of ending do you think this letter has?',
+      choices: [
+        'a question',
+        'a confession',
+        'a promise',
+        'a quiet "it was always you"',
+      ],
+      correct: 3,
     },
   ];
   const pool =

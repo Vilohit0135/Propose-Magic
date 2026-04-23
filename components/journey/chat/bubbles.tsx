@@ -423,29 +423,41 @@ export function LetterBubble({
               animation: 'fadeInUp 0.5s both',
             }}
           >
-            {['😍', '🥹', '💕', '😭', '🤗'].map((e) => (
-              <button
-                key={e}
-                onClick={() => handleReact(e)}
-                aria-label={`React ${e}`}
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 99,
-                  border: `1px solid ${withAlpha(t.palette.text, 0.1)}`,
-                  background:
-                    picked === e
-                      ? withAlpha(t.palette.accent, 0.25)
+            {['😍', '🥹', '💕', '😭', '🤗'].map((e) => {
+              const isPicked = picked === e;
+              const dimOthers = !!picked && !isPicked;
+              return (
+                <button
+                  key={e}
+                  onClick={() => handleReact(e)}
+                  aria-label={`React ${e}`}
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 99,
+                    border: `1px solid ${
+                      isPicked
+                        ? t.palette.accent
+                        : withAlpha(t.palette.text, 0.1)
+                    }`,
+                    background: isPicked
+                      ? t.palette.accent
                       : withAlpha(t.palette.accent2, 0.08),
-                  fontSize: 16,
-                  cursor: 'pointer',
-                  transition: 'background 0.2s, transform 0.2s',
-                  transform: picked === e ? 'scale(1.15)' : 'scale(1)',
-                }}
-              >
-                {e}
-              </button>
-            ))}
+                    fontSize: 17,
+                    cursor: 'pointer',
+                    transition:
+                      'background 0.25s, transform 0.25s, opacity 0.25s, box-shadow 0.25s',
+                    transform: isPicked ? 'scale(1.3)' : 'scale(1)',
+                    opacity: dimOthers ? 0.35 : 1,
+                    boxShadow: isPicked
+                      ? `0 0 0 3px ${withAlpha(t.palette.accent, 0.35)}, 0 6px 18px ${withAlpha(t.palette.accent, 0.5)}`
+                      : 'none',
+                  }}
+                >
+                  {e}
+                </button>
+              );
+            })}
           </div>
         )}
         {picked && done && (

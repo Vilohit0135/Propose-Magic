@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import Anthropic from '@anthropic-ai/sdk';
+import { callGemini } from '@/lib/gemini';
 import type { RevealContent, RevealStyle } from '@/lib/types';
 
 // Generates quiz content from a sender's story via Claude. Returns either:
@@ -75,10 +75,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'invalid_json' }, { status: 400 });
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
+  if (!process.env.GEMINI_API_KEY) {
     return NextResponse.json(
-      { error: 'anthropic_not_configured' },
+      { error: 'gemini_not_configured' },
       { status: 503 },
     );
   }
@@ -101,67 +100,54 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'missing_from_name' }, { status: 400 });
   }
 
-  try {
-    const client = new Anthropic({ apiKey });
-    const response = await client.messages.create({
-      model: 'claude-haiku-4-5',
-      max_tokens: 1200,
-      system: [
-        { type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } },
-      ],
-      messages: [
-        { role: 'user', content: buildUser(story, style as RevealStyle, fromName) },
-      ],
-    });
+  const result = await callGemini(
+    SYSTEM,
+    buildUser(story, style as RevealStyle, fromName),
+    { maxOutputTokens: 2000, temperature: 0.6, json: true },
+  );
 
-    const raw = response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-      .map((b) => b.text)
-      .join('\n')
-      .trim();
-
-    const parsed = safeParseJson(raw);
-    if (!parsed) {
-      return NextResponse.json(
-        { status: 'insufficient', reason: 'Could not read the generated response. Try again, or fill it in manually.' },
-        { status: 200 },
-      );
+  if (!result.ok) {
+    console.error('[generate-quiz] Gemini call failed:', result);
+    if (result.status === 401 || result.status === 403) {
+      return NextResponse.json({ error: 'gemini_auth' }, { status: 401 });
     }
-
-    if (parsed.status === 'insufficient') {
-      const reason =
-        typeof parsed.reason === 'string' && parsed.reason.trim()
-          ? parsed.reason.trim()
-          : 'Add more specific details to your story — places, moments, inside jokes — then try again.';
-      return NextResponse.json({ status: 'insufficient', reason });
-    }
-
-    if (parsed.status === 'ok' && parsed.content) {
-      const content = sanitizeContent(parsed.content, style as RevealStyle);
-      if (!content) {
-        return NextResponse.json(
-          { status: 'insufficient', reason: 'The generated quiz was incomplete. Try again, or fill it in manually.' },
-          { status: 200 },
-        );
-      }
-      return NextResponse.json({ status: 'ok', content });
-    }
-
-    return NextResponse.json(
-      { status: 'insufficient', reason: 'Unexpected response shape. Try again, or fill it in manually.' },
-      { status: 200 },
-    );
-  } catch (err) {
-    console.error('[generate-quiz] Claude call failed:', err);
-    // Surface the specific failure class so the UI can show a useful hint.
-    if (err instanceof Anthropic.AuthenticationError) {
-      return NextResponse.json({ error: 'anthropic_auth' }, { status: 401 });
-    }
-    if (err instanceof Anthropic.RateLimitError) {
-      return NextResponse.json({ error: 'anthropic_rate_limit' }, { status: 429 });
+    if (result.status === 429) {
+      return NextResponse.json({ error: 'gemini_rate_limit' }, { status: 429 });
     }
     return NextResponse.json({ error: 'generation_failed' }, { status: 500 });
   }
+
+  const parsed = safeParseJson(result.text);
+  if (!parsed) {
+    return NextResponse.json(
+      { status: 'insufficient', reason: 'Could not read the generated response. Try again, or fill it in manually.' },
+      { status: 200 },
+    );
+  }
+
+  if (parsed.status === 'insufficient') {
+    const reason =
+      typeof parsed.reason === 'string' && parsed.reason.trim()
+        ? parsed.reason.trim()
+        : 'Add more specific details to your story — places, moments, inside jokes — then try again.';
+    return NextResponse.json({ status: 'insufficient', reason });
+  }
+
+  if (parsed.status === 'ok' && parsed.content) {
+    const content = sanitizeContent(parsed.content, style as RevealStyle);
+    if (!content) {
+      return NextResponse.json(
+        { status: 'insufficient', reason: 'The generated quiz was incomplete. Try again, or fill it in manually.' },
+        { status: 200 },
+      );
+    }
+    return NextResponse.json({ status: 'ok', content });
+  }
+
+  return NextResponse.json(
+    { status: 'insufficient', reason: 'Unexpected response shape. Try again, or fill it in manually.' },
+    { status: 200 },
+  );
 }
 
 function safeParseJson(raw: string): { status?: string; reason?: string; content?: unknown } | null {
