@@ -62,33 +62,54 @@ function useAutoDrift(
       }, resumeAfterMs);
     };
 
-    // Only pause when the user actually *moves* the scroll position. The
-    // old touchstart listener was firing on every finger-on-glass on
-    // mobile — including when the user was scrolling the chat vertically
-    // with a finger resting on a photo — so the strip was permanently
-    // paused on phones. The scroll event fires for drag/wheel/trackpad
-    // equally and gives us the real delta, which is what we want.
-    let lastPos = axis === 'x' ? el.scrollLeft : el.scrollTop;
-    // Any delta per scroll event bigger than ~3 frames' worth of drift is
-    // clearly user-driven. Our RAF only shifts fractions of a pixel per
-    // frame and browsers coalesce those into sub-pixel scroll events, so
-    // this threshold is safely above the noise floor.
-    const userDragThreshold = (pxPerSecond / 60) * 4 + 2;
-    const maybePauseFromScroll = () => {
-      const pos = axis === 'x' ? el.scrollLeft : el.scrollTop;
-      if (Math.abs(pos - lastPos) > userDragThreshold) pause();
-      lastPos = pos;
+    // Pause strategy:
+    //   - wheel: always pauses (desktop/trackpad).
+    //   - pointerdown + pointermove: pause only if the pointer drags
+    //     more than 10px in OUR drift axis — so a vertical chat scroll
+    //     (finger-on-photo but moving down the page) doesn't kill a
+    //     horizontal drift. A deliberate horizontal swipe does.
+    //
+    // Previous attempts (touchstart → scroll-delta watcher) both misread
+    // our own sub-pixel RAF writes as user motion and paused immediately,
+    // so the drift appeared "stuck" on mobile. Drag-distance detection is
+    // the only mode that cleanly distinguishes intent without parsing our
+    // own scroll events.
+    let pointerStart: { x: number; y: number; id: number } | null = null;
+
+    const onPointerDown = (e: PointerEvent) => {
+      pointerStart = { x: e.clientX, y: e.clientY, id: e.pointerId };
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      if (!pointerStart || e.pointerId !== pointerStart.id) return;
+      const dx = Math.abs(e.clientX - pointerStart.x);
+      const dy = Math.abs(e.clientY - pointerStart.y);
+      const driftAxis = axis === 'x' ? dx : dy;
+      if (driftAxis > 10) {
+        pause();
+        pointerStart = null;
+      }
+    };
+
+    const onPointerEnd = (e: PointerEvent) => {
+      if (pointerStart && e.pointerId === pointerStart.id) pointerStart = null;
     };
 
     el.addEventListener('wheel', pause, { passive: true });
-    el.addEventListener('scroll', maybePauseFromScroll, { passive: true });
+    el.addEventListener('pointerdown', onPointerDown);
+    el.addEventListener('pointermove', onPointerMove);
+    el.addEventListener('pointerup', onPointerEnd);
+    el.addEventListener('pointercancel', onPointerEnd);
 
     raf = requestAnimationFrame(step);
     return () => {
       cancelAnimationFrame(raf);
       if (resumeTimer) window.clearTimeout(resumeTimer);
       el.removeEventListener('wheel', pause);
-      el.removeEventListener('scroll', maybePauseFromScroll);
+      el.removeEventListener('pointerdown', onPointerDown);
+      el.removeEventListener('pointermove', onPointerMove);
+      el.removeEventListener('pointerup', onPointerEnd);
+      el.removeEventListener('pointercancel', onPointerEnd);
     };
   }, [pxPerSecond, axis, resumeAfterMs]);
   return ref;
