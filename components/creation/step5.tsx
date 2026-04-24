@@ -244,11 +244,47 @@ function DeliveredScreen({
   onOpen: () => void;
 }) {
   const [origin, setOrigin] = useState('');
+  // Shortened URL via TinyURL so the link shared with the receiver hides
+  // the propose-magic domain. If TinyURL fails for any reason, the server
+  // returns the original URL as a fallback and we show that instead.
+  const [shortenedUrl, setShortenedUrl] = useState<string | null>(null);
+  const [shortening, setShortening] = useState(true);
+
   useEffect(() => {
     setOrigin(window.location.origin);
   }, []);
-  const url = `${origin.replace(/^https?:\/\//, '') || 'proposemagic.in'}/p/${shortId}`;
-  const shareText = `I made something for you ♥ ${origin || 'https://proposemagic.in'}/p/${shortId}`;
+
+  useEffect(() => {
+    if (!shortId) return;
+    if (typeof window === 'undefined') return;
+    const full = `${window.location.origin}/p/${shortId}`;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/shorten', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ url: full }),
+        });
+        if (!res.ok) throw new Error(`status_${res.status}`);
+        const data = (await res.json()) as { short?: string };
+        if (!cancelled && data?.short) setShortenedUrl(data.short);
+      } catch {
+        if (!cancelled) setShortenedUrl(full);
+      } finally {
+        if (!cancelled) setShortening(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [shortId]);
+
+  const fullUrl =
+    shortenedUrl ??
+    `${origin || 'https://proposemagic.in'}/p/${shortId}`;
+  const displayUrl = fullUrl.replace(/^https?:\/\//, '');
+  const shareText = `I made something for you ♥ ${fullUrl}`;
   const whatsapp = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
   return (
     <div
@@ -290,9 +326,10 @@ function DeliveredScreen({
           fontSize: 13,
           color: '#1a1a1a',
           fontFamily: 'ui-monospace, monospace',
+          minWidth: 220,
         }}
       >
-        {url}
+        {shortening ? 'creating your short link…' : displayUrl}
       </div>
       <button
         onClick={onOpen}
@@ -311,23 +348,29 @@ function DeliveredScreen({
         Open their page →
       </button>
       <a
-        href={whatsapp}
+        href={shortening ? undefined : whatsapp}
         target="_blank"
         rel="noreferrer"
+        aria-disabled={shortening}
+        onClick={(e) => {
+          if (shortening) e.preventDefault();
+        }}
         style={{
           marginTop: 10,
           padding: '12px 24px',
           borderRadius: 99,
           border: '1px solid #25D366',
-          background: '#25D366',
+          background: shortening ? '#b7e6c8' : '#25D366',
           color: '#fff',
           fontSize: 13,
           fontWeight: 600,
-          cursor: 'pointer',
+          cursor: shortening ? 'wait' : 'pointer',
           textDecoration: 'none',
+          opacity: shortening ? 0.8 : 1,
+          transition: 'background 0.2s, opacity 0.2s',
         }}
       >
-        Share on WhatsApp
+        {shortening ? 'Preparing link…' : 'Share on WhatsApp'}
       </a>
     </div>
   );

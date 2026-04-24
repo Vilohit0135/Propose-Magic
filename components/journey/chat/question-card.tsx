@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import type { OrderState, SubFlow, TemplateDef } from '@/lib/types';
 import { withAlpha } from './bubbles';
@@ -17,16 +17,43 @@ export function QuestionCard({
   onYes: () => void;
 }) {
   const [dodges, setDodges] = useState(0);
-  const [noPos, setNoPos] = useState({ x: 0, y: 0 });
+  // Null while the button sits in its natural flow position under Yes.
+  // Becomes absolute {left, top} once the user tries to interact — that's
+  // when it starts roaming the whole card instead of wiggling in place.
+  const [noPos, setNoPos] = useState<{ left: number; top: number } | null>(null);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const noBtnRef = useRef<HTMLButtonElement | null>(null);
   // Keeps cycling — never runs out. After the first few, it settles on a
   // resigned loop so the button never hides and never gives up.
   const NO_LABELS = ['no', 'really?', 'come on…', 'no way', 'please?', 'fine 😢', 'don’t'];
 
   const dodge = (e?: React.SyntheticEvent) => {
     e?.stopPropagation?.();
-    // Jitter stays lively forever — amplitude floor keeps it moving.
-    const max = Math.max(30, 72 - dodges * 6);
-    setNoPos({ x: (Math.random() - 0.5) * max, y: (Math.random() - 0.5) * max });
+    const card = cardRef.current;
+    const btn = noBtnRef.current;
+    if (!card || !btn) return;
+
+    const cardRect = card.getBoundingClientRect();
+    const btnW = btn.offsetWidth;
+    const btnH = btn.offsetHeight;
+    const edge = 14; // keep at least this much space from card edges
+
+    // Random anywhere inside the card. If the dice land on top of the
+    // Yes button, retry a few times — guarantees the Yes button stays
+    // tappable even when No is bouncing across the whole surface.
+    const yesZone = yesButtonZone(card);
+    let left = edge;
+    let top = edge;
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const maxLeft = Math.max(edge, cardRect.width - btnW - edge);
+      const maxTop = Math.max(edge, cardRect.height - btnH - edge);
+      left = edge + Math.random() * (maxLeft - edge);
+      top = edge + Math.random() * (maxTop - edge);
+      const rect = { left, top, right: left + btnW, bottom: top + btnH };
+      if (!overlaps(rect, yesZone)) break;
+    }
+
+    setNoPos({ left, top });
     setDodges((d) => d + 1);
   };
 
@@ -51,9 +78,11 @@ export function QuestionCard({
       }}
     >
       <motion.div
+        ref={cardRef}
         initial={{ opacity: 0, scale: 0.85, y: 24 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 180, damping: 22, delay: 0.15 }}
+        data-yes-card
         style={{
           position: 'relative',
           width: '100%',
@@ -129,6 +158,7 @@ export function QuestionCard({
         </motion.div>
 
         <motion.button
+          data-yes-btn
           onClick={onYes}
           initial={{ opacity: 0, y: 16, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -155,16 +185,24 @@ export function QuestionCard({
         </motion.button>
 
         <motion.button
+          ref={noBtnRef}
           onMouseEnter={dodge}
           onFocus={dodge}
           onClick={dodge}
+          onTouchStart={dodge}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 2.1 }}
           style={{
-            marginTop: 14,
-            width: '60%',
-            padding: '12px 20px',
+            // Switches from document flow to absolute once she tries
+            // to touch it — that's when the dodge starts covering the
+            // whole card rather than wiggling in place.
+            position: noPos ? 'absolute' : 'relative',
+            left: noPos ? `${noPos.left}px` : undefined,
+            top: noPos ? `${noPos.top}px` : undefined,
+            marginTop: noPos ? 0 : 14,
+            width: 'auto',
+            padding: '12px 22px',
             borderRadius: 99,
             border: `1px solid ${withAlpha(t.palette.text, 0.25)}`,
             background: withAlpha(t.palette.text, 0.06),
@@ -172,16 +210,50 @@ export function QuestionCard({
             fontSize: 14,
             fontWeight: 500,
             cursor: 'pointer',
-            transform: `translate(${noPos.x}px, ${noPos.y}px)`,
             transition:
-              'transform 0.35s cubic-bezier(.3,1.5,.5,1), background 0.2s, border-color 0.2s',
+              'left 0.45s cubic-bezier(.3,1.5,.5,1), top 0.45s cubic-bezier(.3,1.5,.5,1), background 0.2s, border-color 0.2s',
             fontFamily: t.fonts.body,
+            zIndex: 2,
           }}
         >
           {NO_LABELS[dodges % NO_LABELS.length]}
         </motion.button>
       </motion.div>
     </motion.div>
+  );
+}
+
+// Small rect-in-card region to protect the Yes button from being
+// covered by the roaming No button. Padded ±12px so they never sit
+// flush against each other either.
+function yesButtonZone(card: HTMLElement): {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+} {
+  const cardRect = card.getBoundingClientRect();
+  const yes = card.querySelector<HTMLElement>('[data-yes-btn]');
+  if (!yes) return { left: 0, top: 0, right: 0, bottom: 0 };
+  const yr = yes.getBoundingClientRect();
+  const pad = 12;
+  return {
+    left: yr.left - cardRect.left - pad,
+    top: yr.top - cardRect.top - pad,
+    right: yr.right - cardRect.left + pad,
+    bottom: yr.bottom - cardRect.top + pad,
+  };
+}
+
+function overlaps(
+  a: { left: number; top: number; right: number; bottom: number },
+  b: { left: number; top: number; right: number; bottom: number },
+): boolean {
+  return !(
+    a.right < b.left ||
+    a.left > b.right ||
+    a.bottom < b.top ||
+    a.top > b.bottom
   );
 }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { TemplateDef } from '@/lib/types';
 import { Grain } from '../../particles';
@@ -27,12 +27,14 @@ export function LetterPopup({
   const [typed, setTyped] = useState('');
   const [done, setDone] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setTyped('');
     setDone(false);
     setPicked(null);
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
     let i = 0;
     const iv = setInterval(() => {
       i += 2;
@@ -44,6 +46,14 @@ export function LetterPopup({
     }, 40);
     return () => clearInterval(iv);
   }, [open, text]);
+
+  // Follow the caret as new characters stream in so long letters never
+  // leave the bottom below the fold.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !open) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+  }, [typed, done, open]);
 
   const handleReact = (emoji: string) => {
     setPicked(emoji);
@@ -79,91 +89,112 @@ export function LetterPopup({
               inset: 0,
               display: 'flex',
               flexDirection: 'column',
-              padding: '60px 28px 24px',
-              overflowY: 'auto',
             }}
           >
+            {/* Scrollable letter region — only the body can scroll. The
+                reactions + close button live in a fixed footer below so
+                they can never be clipped off-screen. */}
             <div
-              style={{
-                textAlign: 'center',
-                fontSize: 10,
-                letterSpacing: 4,
-                textTransform: 'uppercase',
-                color: t.palette.accent,
-                marginBottom: 8,
-              }}
-            >
-              A letter for you
-            </div>
-            <div
-              style={{
-                width: 32,
-                height: 1,
-                background: t.palette.accent,
-                margin: '0 auto 28px',
-                opacity: 0.6,
-              }}
-            />
-            <div
+              ref={scrollRef}
               style={{
                 flex: 1,
-                fontFamily: t.fonts.display,
-                fontStyle: 'italic',
-                fontSize: 19,
-                lineHeight: 1.7,
-                color: t.palette.text,
-                whiteSpace: 'pre-wrap',
-                maxWidth: 540,
-                margin: '0 auto',
-                width: '100%',
-                textShadow: `0 0 40px ${withAlpha(t.palette.accent, 0.15)}`,
+                minHeight: 0,
+                overflowY: 'auto',
+                scrollBehavior: 'smooth',
+                padding: '60px 28px 12px',
+                display: 'flex',
+                flexDirection: 'column',
               }}
             >
-              {typed}
-              {!done && (
-                <span style={{ opacity: 0.5, animation: 'blink 1s infinite' }}>|</span>
-              )}
-              {done && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.7, delay: 0.1 }}
-                  style={{
-                    marginTop: 22,
-                    fontSize: 16,
-                    color: t.palette.accent,
-                    textAlign: 'right',
-                  }}
-                >
-                  — <RevealingName
-                    name={signatureName}
-                    reveal={!anonSignature}
-                    color={t.palette.accent}
-                    accent={t.palette.accent}
-                  />
-                </motion.div>
-              )}
+              <div
+                style={{
+                  textAlign: 'center',
+                  fontSize: 10,
+                  letterSpacing: 4,
+                  textTransform: 'uppercase',
+                  color: t.palette.accent,
+                  marginBottom: 8,
+                }}
+              >
+                A letter for you
+              </div>
+              <div
+                style={{
+                  width: 32,
+                  height: 1,
+                  background: t.palette.accent,
+                  margin: '0 auto 28px',
+                  opacity: 0.6,
+                }}
+              />
+              <div
+                style={{
+                  flex: 1,
+                  fontFamily: t.fonts.display,
+                  fontStyle: 'italic',
+                  fontSize: 19,
+                  lineHeight: 1.7,
+                  color: t.palette.text,
+                  whiteSpace: 'pre-wrap',
+                  maxWidth: 540,
+                  margin: '0 auto',
+                  width: '100%',
+                  textShadow: `0 0 40px ${withAlpha(t.palette.accent, 0.15)}`,
+                }}
+              >
+                {typed}
+                {!done && (
+                  <span style={{ opacity: 0.5, animation: 'blink 1s infinite' }}>|</span>
+                )}
+                {done && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.7, delay: 0.1 }}
+                    style={{
+                      marginTop: 22,
+                      fontSize: 16,
+                      color: t.palette.accent,
+                      textAlign: 'right',
+                    }}
+                  >
+                    — <RevealingName
+                      name={signatureName}
+                      reveal={!anonSignature}
+                      color={t.palette.accent}
+                      accent={t.palette.accent}
+                    />
+                  </motion.div>
+                )}
+              </div>
             </div>
 
+            {/* Pinned footer — sits below the scroll region so all five
+                emoji buttons and the close CTA are always fully visible,
+                regardless of how long the letter is or how far the
+                reader has scrolled. */}
             {done && (
               <motion.div
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.4 }}
                 style={{
+                  flexShrink: 0,
+                  padding: '14px 18px 22px',
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  gap: 18,
-                  paddingTop: 24,
+                  gap: 14,
+                  background: `linear-gradient(180deg, transparent 0%, ${t.palette.bg} 40%)`,
                 }}
               >
                 <div
                   style={{
                     display: 'flex',
                     gap: 8,
-                    flexWrap: 'wrap',
                     justifyContent: 'center',
+                    flexWrap: 'nowrap',
+                    maxWidth: '100%',
                   }}
                 >
                   {['😍', '🥹', '💕', '😭', '🤗'].map((e) => {
@@ -175,8 +206,11 @@ export function LetterPopup({
                         onClick={() => handleReact(e)}
                         aria-label={`React ${e}`}
                         style={{
-                          width: 44,
-                          height: 44,
+                          // Size down slightly so all five fit even on
+                          // narrow phones without wrapping.
+                          width: 42,
+                          height: 42,
+                          flexShrink: 0,
                           borderRadius: 99,
                           border: `1px solid ${
                             isPicked
@@ -186,9 +220,9 @@ export function LetterPopup({
                           background: isPicked
                             ? t.palette.accent
                             : withAlpha(t.palette.accent2, 0.08),
-                          fontSize: 22,
+                          fontSize: 20,
                           cursor: 'pointer',
-                          transform: isPicked ? 'scale(1.3)' : 'scale(1)',
+                          transform: isPicked ? 'scale(1.25)' : 'scale(1)',
                           transition:
                             'background 0.25s, transform 0.25s, opacity 0.25s, box-shadow 0.25s',
                           backdropFilter: 'blur(6px)',

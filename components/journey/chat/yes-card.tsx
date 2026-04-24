@@ -38,25 +38,80 @@ export function YesCard({
   const mins = Math.max(1, Math.round((Date.now() - startTime) / 60000));
   const firstTo = state.toName.trim().split(/\s+/)[0] || 'they';
   const firstFrom = state.fromName.trim().split(/\s+/)[0] || 'someone';
-  const headline = `${firstTo} said YES! ${sub.particle}`;
 
-  // Native share → system sheet on mobile, fall back to copying the URL.
-  // Using the current page URL (not a synthetic link) so whoever opens the
-  // shared link lands on exactly this receiver page.
+  // Rasterize just the celebration card (the ref attached to the inner
+  // motion.div) to a Blob. Reused by both "Share this moment" and
+  // "Save as image" so the payload is identical across both actions.
+  const renderCardBlob = async (): Promise<Blob | null> => {
+    if (!cardRef.current) return null;
+    const { toBlob } = await import('html-to-image');
+    return toBlob(cardRef.current, {
+      pixelRatio: 2,
+      cacheBust: true,
+      skipFonts: true,
+      backgroundColor: t.palette.bg,
+      filter: (node) => {
+        if (node instanceof HTMLElement) {
+          if (node.tagName === 'LINK') return false;
+          if (node.tagName === 'STYLE' && node.innerHTML.includes('@import')) {
+            return false;
+          }
+        }
+        return true;
+      },
+    });
+  };
+
+  // Share the *card as an image* (not the receiver URL). On mobile with
+  // file-share support, WhatsApp/iMessage/IG all preview the PNG inline —
+  // which is what the sender actually wants to show off. Fallbacks:
+  //   1. navigator.share({files}) — preferred, shares the card PNG.
+  //   2. navigator.share({url}) — shares the receiver URL text (old behavior).
+  //   3. clipboard.writeText — desktop fallback when Web Share is missing.
   const handleShare = async () => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || saveBusy) return;
     const url = window.location.href;
     const title = `${firstTo} said yes`;
     const text = `${firstTo} said YES to ${firstFrom} ${sub.particle}`;
+
+    setSaveBusy(true);
     try {
-      if (typeof navigator.share === 'function') {
+      const blob = await renderCardBlob();
+      if (blob) {
+        const file = new File([blob], `${firstTo}-said-yes.png`, {
+          type: 'image/png',
+        });
+        if (
+          typeof navigator.canShare === 'function' &&
+          navigator.canShare({ files: [file] })
+        ) {
+          try {
+            await navigator.share({ files: [file], title, text });
+            return;
+          } catch {
+            // User dismissed the share sheet or the OS refused — fall
+            // through to the URL fallbacks below so they still have
+            // a working share.
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[YesCard] image render for share failed', err);
+    } finally {
+      setSaveBusy(false);
+    }
+
+    // No file-share support — share the URL so WhatsApp still gets a
+    // preview card (from the page's OG tags, if/when we add them).
+    if (typeof navigator.share === 'function') {
+      try {
         await navigator.share({ title, text, url });
         return;
+      } catch {
+        return;
       }
-    } catch {
-      // User dismissed the share sheet — don't treat as error.
-      return;
     }
+
     try {
       await navigator.clipboard.writeText(url);
       setShareHint('Link copied');
@@ -71,34 +126,18 @@ export function YesCard({
     if (!cardRef.current || saveBusy) return;
     setSaveBusy(true);
     try {
-      const { toPng } = await import('html-to-image');
-      // skipFonts: true dodges the cross-origin cssRules error from Google
-      // Fonts that was silently killing the export. The PNG renders with
-      // system font fallbacks but actually saves reliably across browsers.
-      // filter: strips <link> tags from the cloned subtree so remote
-      // stylesheet fetches don't block serialization either.
-      const dataUrl = await toPng(cardRef.current, {
-        pixelRatio: 2,
-        cacheBust: true,
-        skipFonts: true,
-        backgroundColor: t.palette.bg,
-        filter: (node) => {
-          if (node instanceof HTMLElement) {
-            if (node.tagName === 'LINK') return false;
-            if (node.tagName === 'STYLE' && node.innerHTML.includes('@import')) {
-              return false;
-            }
-          }
-          return true;
-        },
-      });
+      const blob = await renderCardBlob();
+      if (!blob) throw new Error('no_blob');
+      const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.download = `${firstTo}-said-yes.png`;
-      link.href = dataUrl;
+      link.href = objectUrl;
       // Some browsers require the anchor to be in the DOM to trigger download.
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      // Give the browser a tick to start the download before revoking.
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 4000);
     } catch (err) {
       console.error('[YesCard] save image failed', err);
       setShareHint("Couldn't save — try a screenshot");
@@ -156,13 +195,41 @@ export function YesCard({
           style={{
             fontFamily: t.fonts.display,
             fontStyle: 'italic',
-            fontSize: 34,
-            lineHeight: 1.1,
             color: t.palette.text,
             textShadow: `0 0 30px ${withAlpha(t.palette.accent, 0.6)}`,
+            // Break the headline into two lines — name on top, then
+            // "said YES!" below. Otherwise long names ("Priyanka",
+            // "Shubhangi") wrap mid-sentence and look truncated on
+            // narrow phones, which was the reported bug.
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 4,
           }}
         >
-          {headline}
+          <span
+            style={{
+              // Scales smoothly from 28px on very narrow viewports up to
+              // 42px on wider phones / tablets, so the first name always
+              // fits on one line with room to breathe.
+              fontSize: 'clamp(26px, 9vw, 42px)',
+              lineHeight: 1.1,
+              wordBreak: 'break-word',
+              overflowWrap: 'anywhere',
+              maxWidth: '100%',
+            }}
+          >
+            {firstTo}
+          </span>
+          <span
+            style={{
+              fontSize: 'clamp(20px, 6.5vw, 30px)',
+              lineHeight: 1.15,
+              color: t.palette.accent,
+            }}
+          >
+            said YES! {sub.particle}
+          </span>
         </motion.div>
 
         <motion.div
