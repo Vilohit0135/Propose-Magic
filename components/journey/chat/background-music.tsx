@@ -1,19 +1,58 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { TemplateDef } from '@/lib/types';
 import { withAlpha } from './bubbles';
 
-// Drops a hidden YouTube embed iframe directly (no IFrame API JS bundle) and
-// talks to it via postMessage. Skipping the API library shaves ~500-1500ms
-// off cold-start because the iframe begins loading the moment React renders
-// it — no round-trip to fetch/parse iframe_api.js.
-//
-// Starts muted so mobile browsers honor autoplay; unmutes on either (a) the
-// first user gesture anywhere, or (b) the floating speaker pill above the
-// heart button (fallback for iOS/Safari that refuse silent unmute). On first
-// play, seeks to `startSeconds` via URL param; subsequent loops restart from
-// zero (YouTube's default loop behavior on playlist=1).
+// Uses YouTube's official IFrame Player API. Earlier revisions used a
+// direct iframe + raw postMessage, which was faster to cold-start but
+// dropped commands silently when the iframe wasn't ready — which caused
+// two recurring bugs:
+//   - `seekTo(startSeconds)` never landed, so songs always played from 0.
+//   - mute/unmute pill taps did nothing because the postMessage reached
+//     YouTube before the player was listening.
+// The API library wraps all this with onReady + isMuted etc. that we can
+// trust. Cost: ~500-1000ms script download on cold load, which is
+// imperceptible given the background song isn't the first thing she's
+// watching anyway.
+
+type YTPlayer = {
+  playVideo: () => void;
+  pauseVideo: () => void;
+  mute: () => void;
+  unMute: () => void;
+  isMuted: () => boolean;
+  setVolume: (v: number) => void;
+  seekTo: (seconds: number, allowSeekAhead: boolean) => void;
+  destroy?: () => void;
+};
+
+type YTPlayerOptions = {
+  videoId: string;
+  height?: string | number;
+  width?: string | number;
+  playerVars?: Record<string, string | number>;
+  events?: {
+    onReady?: (e: { target: YTPlayer }) => void;
+    onStateChange?: (e: { data: number; target: YTPlayer }) => void;
+    onError?: (e: { data: number }) => void;
+  };
+};
+
+type YTNamespace = {
+  Player: new (
+    element: string | HTMLElement,
+    options: YTPlayerOptions,
+  ) => YTPlayer;
+};
+
+declare global {
+  interface Window {
+    YT?: YTNamespace;
+    onYouTubeIframeAPIReady?: () => void;
+  }
+}
+
 export function BackgroundMusic({
   videoId,
   startSeconds,
@@ -23,73 +62,184 @@ export function BackgroundMusic({
   startSeconds: number | null;
   t: TemplateDef;
 }) {
-  const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  // `muted` is the actual audio state of the iframe player. Starts true
-  // because we spawn the iframe with mute=1 so autoplay is honored. The
-  // first user gesture flips it via the effect below. The floating
-  // speaker pill is always visible so the receiver can toggle at will.
+  const containerId = useRef(`bgm-${Math.random().toString(36).slice(2, 9)}`);
+  const playerRef = useRef<YTPlayer | null>(null);
+  const mountedRef = useRef(false);
+  // `muted` reflects the *player's* actual mute state. `userMutedRef`
+  // latches true when the receiver explicitly mutes via the pill — the
+  // background gesture listeners respect that and stop fighting her.
   const [muted, setMuted] = useState(true);
-  // Mirrors `muted` so the long-lived gesture-listener effect below can
-  // read the current state without re-subscribing on every change.
-  // Specifically: once the user explicitly mutes via the pill, we stop
-  // re-unmuting them on every subsequent tap.
+  const [ready, setReady] = useState(false);
   const userMutedRef = useRef(false);
 
-  const src = useMemo(() => {
-    const params = new URLSearchParams({
-      autoplay: '1',
-      mute: '1',
-      loop: '1',
-      playlist: videoId,
-      controls: '0',
-      disablekb: '1',
-      fs: '0',
-      iv_load_policy: '3',
-      modestbranding: '1',
-      playsinline: '1',
-      rel: '0',
-      enablejsapi: '1',
-    });
-    if (typeof window !== 'undefined') {
-      params.set('origin', window.location.origin);
+  useEffect(() => {
+    if (!videoId || typeof window === 'undefined') return;
+    mountedRef.current = true;
+
+    const createPlayer = () => {
+      if (!mountedRef.current) return;
+      const YT = window.YT;
+      if (!YT) return;
+      try {
+        playerRef.current = new YT.Player(containerId.current, {
+          videoId,
+          height: 1,
+          width: 1,
+          playerVars: {
+            autoplay: 1,
+            mute: 1,
+            loop: 1,
+            playlist: videoId,
+            controls: 0,
+            disablekb: 1,
+            fs: 0,
+            iv_load_policy: 3,
+            modestbranding: 1,
+            playsinline: 1,
+            rel: 0,
+            enablejsapi: 1,
+            origin: window.location.origin,
+          },
+          events: {
+            onReady: ({ target }) => {
+              setReady(true);
+              try {
+                // Seek to start FIRST, then play. Doing this via the
+                // actual player method (not URL param) is the reliable
+                // path when combined with loop=1+playlist.
+                target.mute();
+                if (startSeconds && startSeconds > 0) {
+                  target.seekTo(startSeconds, true);
+                }
+                target.playVideo();
+              } catch {
+                // Player sometimes throws before it has a media element;
+                // the gesture listeners will retry below.
+              }
+            },
+            onStateChange: ({ data, target }) => {
+              // 1 = playing, 0 = ended.
+              if (data === 1) {
+                // Sync our muted flag with the player's actual state —
+                // browsers sometimes force-mute autoplay even though we
+                // asked for unmute, and we want the pill to reflect the
+                // real audio state.
+                try {
+                  setMuted(target.isMuted());
+                } catch {
+                  // ignore
+                }
+              }
+              if (data === 0 && startSeconds && startSeconds > 0) {
+                // When the loop wraps, YouTube's default is to restart
+                // from 0. Force the seek so *every* repeat begins at
+                // the sender's chosen timestamp — not just the first.
+                try {
+                  target.seekTo(startSeconds, true);
+                  target.playVideo();
+                } catch {
+                  // ignore
+                }
+              }
+            },
+            onError: () => {
+              // Embed disabled / region-blocked / video removed. Nothing
+              // we can do from here; the rest of the page still works.
+            },
+          },
+        });
+      } catch {
+        // Init error — chat still works without music.
+      }
+    };
+
+    if (!window.YT?.Player) {
+      const prevReady = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => {
+        prevReady?.();
+        createPlayer();
+      };
+      if (!document.querySelector('script[data-yt-iframe-api]')) {
+        const s = document.createElement('script');
+        s.src = 'https://www.youtube.com/iframe_api';
+        s.async = true;
+        s.setAttribute('data-yt-iframe-api', '');
+        document.head.appendChild(s);
+      }
+    } else {
+      createPlayer();
     }
-    if (startSeconds && startSeconds > 0) {
-      params.set('start', String(startSeconds));
-    }
-    return `https://www.youtube.com/embed/${videoId}?${params.toString()}`;
+
+    // Gesture-driven unmute — covers the browser autoplay policy. We
+    // respect userMutedRef so this doesn't keep flipping audio back on
+    // after the receiver has explicitly silenced it.
+    const attemptUnmute = () => {
+      const p = playerRef.current;
+      if (!p || userMutedRef.current) return;
+      try {
+        p.unMute();
+        p.setVolume(55);
+        p.playVideo();
+        setMuted(false);
+      } catch {
+        // player not ready yet
+      }
+    };
+
+    const onGesture = () => {
+      attemptUnmute();
+      // Retry for ~1.5s in case the player wasn't ready on the first
+      // gesture (common on the entry-gate tap).
+      [200, 500, 900, 1500].forEach((ms) => {
+        window.setTimeout(attemptUnmute, ms);
+      });
+    };
+
+    const events: Array<[keyof DocumentEventMap, AddEventListenerOptions?]> = [
+      ['pointerdown'],
+      ['touchstart', { passive: true }],
+      ['click'],
+      ['keydown'],
+    ];
+    events.forEach(([name, opts]) =>
+      document.addEventListener(name, onGesture, opts),
+    );
+
+    return () => {
+      mountedRef.current = false;
+      events.forEach(([name, opts]) =>
+        document.removeEventListener(name, onGesture, opts),
+      );
+      try {
+        playerRef.current?.destroy?.();
+      } catch {
+        // already destroyed
+      }
+      playerRef.current = null;
+    };
   }, [videoId, startSeconds]);
 
-  // Fire a YouTube iframe postMessage command. Format matches what the
-  // IFrame API library sends internally.
-  const command = (func: string, args: unknown[] = []) => {
-    const win = iframeRef.current?.contentWindow;
-    if (!win) return;
+  const mute = () => {
+    setMuted(true);
+    userMutedRef.current = true;
     try {
-      win.postMessage(
-        JSON.stringify({ event: 'command', func, args }),
-        'https://www.youtube.com',
-      );
+      playerRef.current?.mute();
     } catch {
-      // Target origin mismatch is safe to swallow.
+      // player not ready — state flip is still correct for UI, and the
+      // autoplay listener respects userMutedRef so audio stays silent.
     }
   };
 
   const unmute = () => {
-    command('unMute');
-    command('setVolume', [55]);
-    command('playVideo');
     setMuted(false);
-    // User re-enabled audio explicitly — clear the latch so casual
-    // gestures can keep the song unmuted if something pauses it later.
     userMutedRef.current = false;
-  };
-
-  const mute = () => {
-    command('mute');
-    setMuted(true);
-    // Latch so the gesture listeners below stop fighting the user's
-    // deliberate mute. The pill is the only way to unmute after this.
-    userMutedRef.current = true;
+    try {
+      playerRef.current?.unMute();
+      playerRef.current?.setVolume(55);
+      playerRef.current?.playVideo();
+    } catch {
+      // ignore
+    }
   };
 
   const toggleMute = () => {
@@ -97,73 +247,10 @@ export function BackgroundMusic({
     else mute();
   };
 
-  // Try to unmute as early as possible. Strategy:
-  //   1. On mount, optimistically fire unmute — works on Chrome desktop
-  //      when the site has a high MEI score, on Android Chrome when the
-  //      receiver arrived via a click (carried-over user activation), and
-  //      in Edge/Opera under similar conditions.
-  //   2. Listen for anything vaguely engagement-like — pointerdown, touch,
-  //      click, scroll, mousemove, wheel, keydown. The first one fires the
-  //      real unmute. iOS Safari still requires an actual tap, no way
-  //      around that — but on any other browser, casual interaction is
-  //      enough.
-  //   3. Retry for ~2s after each attempt, since the iframe often drops
-  //      commands issued before YouTube finishes loading on its side.
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const retryTimers: number[] = [];
-
-    const attempt = () => {
-      command('unMute');
-      command('setVolume', [55]);
-      command('playVideo');
-    };
-
-    // Every gesture re-asserts unmuted playback — unless the user has
-    // explicitly silenced it via the pill (tracked via userMutedRef).
-    // This means the entry-gate tap, the ready-check tap, the letter
-    // close, and casual scrolling all get a fresh chance at unmuting,
-    // which covers the case where the iframe wasn't ready on the very
-    // first gesture.
-    const fire = () => {
-      if (userMutedRef.current) return;
-      attempt();
-      setMuted(false);
-      [180, 420, 900].forEach((ms) => {
-        retryTimers.push(window.setTimeout(attempt, ms));
-      });
-    };
-
-    // Optimistic tries on mount — harmless if the browser blocks them.
-    const earlyTries: number[] = [];
-    [600, 1400, 2400].forEach((ms) => {
-      earlyTries.push(window.setTimeout(attempt, ms));
-    });
-
-    const events: Array<[keyof DocumentEventMap, AddEventListenerOptions?]> = [
-      ['pointerdown'],
-      ['touchstart', { passive: true }],
-      ['click'],
-      ['keydown'],
-      ['mousemove'],
-      ['wheel', { passive: true }],
-      ['scroll', { passive: true, capture: true }],
-    ];
-    events.forEach(([name, opts]) =>
-      document.addEventListener(name, fire, opts),
-    );
-
-    return () => {
-      earlyTries.forEach((id) => window.clearTimeout(id));
-      retryTimers.forEach((id) => window.clearTimeout(id));
-      events.forEach(([name, opts]) =>
-        document.removeEventListener(name, fire, opts),
-      );
-    };
-  }, []);
-
   return (
     <>
+      {/* Hidden player container off-screen. The YT.Player replaces this
+          div with an <iframe> on mount. */}
       <div
         aria-hidden
         style={{
@@ -176,20 +263,14 @@ export function BackgroundMusic({
           overflow: 'hidden',
         }}
       >
-        <iframe
-          ref={iframeRef}
-          src={src}
-          title=""
-          width={1}
-          height={1}
-          allow="autoplay; encrypted-media"
-          style={{ border: 0 }}
-        />
+        <div id={containerId.current} />
       </div>
-      {/* Persistent mute/unmute pill. Stays visible the whole time the
-          receiver is on the page so she can quiet the song any time. */}
+      {/* Persistent mute/unmute pill. Disabled while the player is
+          loading so taps during cold-start don't no-op silently — she
+          sees it's not ready yet. */}
       <button
         onClick={toggleMute}
+        disabled={!ready}
         aria-label={muted ? 'Turn on sound' : 'Mute sound'}
         aria-pressed={!muted}
         title={muted ? 'Turn on sound' : 'Mute'}
@@ -206,7 +287,8 @@ export function BackgroundMusic({
           background: withAlpha(t.palette.accent, muted ? 0.22 : 0.12),
           color: t.palette.text,
           fontSize: 16,
-          cursor: 'pointer',
+          cursor: ready ? 'pointer' : 'wait',
+          opacity: ready ? 1 : 0.5,
           fontFamily: t.fonts.body,
           display: 'flex',
           alignItems: 'center',
@@ -214,11 +296,8 @@ export function BackgroundMusic({
           backdropFilter: 'blur(10px)',
           WebkitBackdropFilter: 'blur(10px)',
           boxShadow: `0 4px 14px ${withAlpha(t.palette.accent, muted ? 0.4 : 0.2)}`,
-          // Pulse only while muted — once audio is flowing, the button
-          // becomes a quiet background control that doesn't demand
-          // attention.
-          animation: muted ? 'pulseBreath 2.4s infinite' : undefined,
-          transition: 'background 0.2s, border-color 0.2s, box-shadow 0.2s',
+          animation: muted && ready ? 'pulseBreath 2.4s infinite' : undefined,
+          transition: 'background 0.2s, border-color 0.2s, box-shadow 0.2s, opacity 0.2s',
         }}
       >
         {muted ? <SpeakerOffIcon /> : <SpeakerOnIcon />}
