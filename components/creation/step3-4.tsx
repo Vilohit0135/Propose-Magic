@@ -637,10 +637,16 @@ function VideoUploadSection({
   setState: SetState;
 }) {
   const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState<{ current: number; total: number; pct: number }>({
+  const [progress, setProgress] = useState<{
+    current: number;
+    total: number;
+    pct: number;
+    phase: 'compress' | 'upload';
+  }>({
     current: 0,
     total: 0,
     pct: 0,
+    phase: 'compress',
   });
   const [error, setError] = useState<string | null>(null);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
@@ -722,7 +728,7 @@ function VideoUploadSection({
     }
 
     setUploading(true);
-    setProgress({ current: 0, total: files.length, pct: 0 });
+    setProgress({ current: 0, total: files.length, pct: 0, phase: 'compress' });
     try {
       const signResp = await fetch('/api/cloudinary/sign', { method: 'POST' });
       if (!signResp.ok) {
@@ -743,9 +749,39 @@ function VideoUploadSection({
 
       const uploaded: string[] = [];
       for (let i = 0; i < files.length; i += 1) {
-        setProgress({ current: i + 1, total: files.length, pct: 0 });
-        const url = await uploadOne(files[i], sign, (pct) =>
-          setProgress({ current: i + 1, total: files.length, pct }),
+        // Phase 1: compress client-side to ~720p + 1.5Mbps webm.
+        // Shrinks typical 25-45MB phone clips down to 5-10MB each,
+        // saving both upload bandwidth and Cloudinary storage.
+        setProgress({
+          current: i + 1,
+          total: files.length,
+          pct: 0,
+          phase: 'compress',
+        });
+        const { compressVideo } = await import('@/lib/video-compress');
+        const { file: prepped } = await compressVideo(files[i], (pct) =>
+          setProgress({
+            current: i + 1,
+            total: files.length,
+            pct,
+            phase: 'compress',
+          }),
+        );
+
+        // Phase 2: upload the compressed clip to Cloudinary.
+        setProgress({
+          current: i + 1,
+          total: files.length,
+          pct: 0,
+          phase: 'upload',
+        });
+        const url = await uploadOne(prepped, sign, (pct) =>
+          setProgress({
+            current: i + 1,
+            total: files.length,
+            pct,
+            phase: 'upload',
+          }),
         );
         uploaded.push(url);
       }
@@ -763,7 +799,7 @@ function VideoUploadSection({
       );
     } finally {
       setUploading(false);
-      setProgress({ current: 0, total: 0, pct: 0 });
+      setProgress({ current: 0, total: 0, pct: 0, phase: 'compress' });
     }
   };
 
@@ -881,8 +917,11 @@ function VideoUploadSection({
                 <div style={{ fontSize: 10, fontWeight: 600, lineHeight: 1.3 }}>
                   {progress.total > 1
                     ? `Clip ${progress.current} / ${progress.total}`
-                    : 'Uploading'}
+                    : progress.phase === 'compress'
+                      ? 'Compressing'
+                      : 'Uploading'}
                   <br />
+                  {progress.phase === 'compress' ? 'Compressing' : 'Uploading'}{' '}
                   {progress.pct}%
                 </div>
                 <div
@@ -892,7 +931,8 @@ function VideoUploadSection({
                     bottom: 0,
                     height: 3,
                     width: `${progress.pct}%`,
-                    background: '#c9748a',
+                    background:
+                      progress.phase === 'compress' ? '#8b5cf6' : '#c9748a',
                     transition: 'width 0.2s',
                   }}
                 />
@@ -1066,22 +1106,35 @@ function VideoTreatmentSection({
             <button
               key={id}
               onClick={() => setState((s) => ({ ...s, videoTreatment: id }))}
+              aria-pressed={active}
               style={{
+                position: 'relative',
                 padding: 0,
                 borderRadius: 12,
                 border: '2px solid',
-                borderColor: active ? '#1a1a1a' : '#e0e0e0',
-                background: '#fff',
+                borderColor: active ? '#8b5cf6' : '#e0e0e0',
+                background: active ? '#f7f3ff' : '#fff',
                 cursor: 'pointer',
                 overflow: 'hidden',
                 fontFamily: 'inherit',
                 textAlign: 'left',
                 transition: 'all 0.15s',
+                boxShadow: active
+                  ? '0 0 0 3px rgba(139, 92, 246, 0.18), 0 8px 20px rgba(139, 92, 246, 0.22)'
+                  : 'none',
               }}
             >
               <TreatmentPreview id={id} still={preview[0]} />
               <div style={{ padding: 10 }}>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>{V.name}</div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: active ? '#5b21b6' : '#1a1a1a',
+                  }}
+                >
+                  {V.name}
+                </div>
                 <div
                   style={{
                     fontSize: 11,
@@ -1093,6 +1146,28 @@ function VideoTreatmentSection({
                   {V.desc}
                 </div>
               </div>
+              {active && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 8,
+                    right: 8,
+                    width: 22,
+                    height: 22,
+                    borderRadius: 99,
+                    background: '#8b5cf6',
+                    color: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    boxShadow: '0 2px 8px rgba(139, 92, 246, 0.5)',
+                  }}
+                >
+                  ✓
+                </div>
+              )}
             </button>
           );
         })}
