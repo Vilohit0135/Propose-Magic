@@ -26,6 +26,7 @@ import { RevealModal } from './reveal-modal';
 import { VideoPopup } from './video-popup';
 import { buildScript, isSilentKind, sectionsFor, type ChatMessage } from './script';
 import { useChatEngine } from './use-chat-engine';
+import { motion, AnimatePresence } from 'motion/react';
 
 type Phase = 'chat' | 'question' | 'yes';
 
@@ -51,11 +52,19 @@ export function ChatJourney({
   const [videoOpen, setVideoOpen] = useState(false);
   const [videoShown, setVideoShown] = useState(false);
   const [readyConfirmed, setReadyConfirmed] = useState(false);
+  // Gate the whole flow behind a tap when there's a song. That tap is the
+  // browser-required user gesture that lets the YouTube iframe unmute
+  // without waiting for scroll/touch deep in the chat. No song → no gate,
+  // the chat starts immediately.
+  const [started, setStarted] = useState(!state.musicVideoId);
 
   const messages = useMemo(() => buildScript(state), [state]);
   const sections = useMemo(() => sectionsFor(state), [state]);
 
-  const engine = useChatEngine(messages, revealOpen || letterOpen || videoOpen);
+  const engine = useChatEngine(
+    messages,
+    !started || revealOpen || letterOpen || videoOpen,
+  );
 
   const letterMsg = useMemo(
     () => messages.find((m): m is Extract<ChatMessage, { kind: 'letter' }> => m.kind === 'letter'),
@@ -167,6 +176,12 @@ export function ChatJourney({
     >
       <Particles template={state.template} density={0.3} />
       <Grain />
+      <EntryGate
+        open={!started}
+        state={state}
+        t={t}
+        onStart={() => setStarted(true)}
+      />
       <div
         ref={scrollRef}
         onScroll={handleScroll}
@@ -359,3 +374,120 @@ function BubbleFor({
   }
 }
 
+function EntryGate({
+  open,
+  state,
+  t,
+  onStart,
+}: {
+  open: boolean;
+  state: OrderState;
+  t: TemplateDef;
+  onStart: () => void;
+}) {
+  // Showing the real first name for the signed case makes the gate feel
+  // personally addressed; anonymous keeps it neutral.
+  const firstTo = state.isAnonymous
+    ? 'you'
+    : (state.toName.trim().split(/\s+/)[0] || 'you');
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.button
+          onClick={onStart}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.5 }}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 200,
+            background: `radial-gradient(ellipse at center, ${t.palette.bg2} 0%, ${t.palette.bg} 80%)`,
+            color: t.palette.text,
+            border: 'none',
+            cursor: 'pointer',
+            padding: 28,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 22,
+            fontFamily: t.fonts.body,
+            textAlign: 'center',
+          }}
+          aria-label="Tap to begin"
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.7 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.9, delay: 0.2, ease: [0.2, 0.9, 0.3, 1] }}
+            style={{
+              fontSize: 56,
+              color: t.palette.accent,
+              filter: `drop-shadow(0 0 28px ${withAlpha(t.palette.accent, 0.55)})`,
+              animation: 'pulseBreath 3s infinite',
+            }}
+          >
+            ♥
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.45 }}
+            style={{
+              fontFamily: t.fonts.display,
+              fontStyle: 'italic',
+              fontSize: 'clamp(22px, 6vw, 30px)',
+              lineHeight: 1.3,
+              color: t.palette.text,
+              maxWidth: 360,
+              textShadow: `0 0 40px ${withAlpha(t.palette.accent, 0.25)}`,
+            }}
+          >
+            A little something for {firstTo}.
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.7 }}
+            style={{
+              fontSize: 13,
+              letterSpacing: 2,
+              textTransform: 'uppercase',
+              color: t.palette.muted,
+              maxWidth: 320,
+              lineHeight: 1.6,
+            }}
+          >
+            Best with sound · Give it a quiet moment
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.8, delay: 1.1 }}
+            style={{
+              marginTop: 12,
+              padding: '14px 28px',
+              borderRadius: 99,
+              border: `1px solid ${t.palette.accent}`,
+              background: withAlpha(t.palette.accent, 0.18),
+              color: t.palette.text,
+              fontSize: 14,
+              fontWeight: 600,
+              letterSpacing: 1.3,
+              boxShadow: `0 0 30px ${withAlpha(t.palette.accent, 0.4)}`,
+              animation: 'pulseBreath 2.2s infinite',
+            }}
+          >
+            Tap anywhere to begin →
+          </motion.div>
+        </motion.button>
+      )}
+    </AnimatePresence>
+  );
+}

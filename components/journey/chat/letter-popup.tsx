@@ -26,14 +26,18 @@ export function LetterPopup({
 }) {
   const [typed, setTyped] = useState('');
   const [done, setDone] = useState(false);
-  const [picked, setPicked] = useState<string | null>(null);
+  // Set of emojis she has tapped so far. Multi-select: each emoji can be
+  // added/removed by tapping. Only committed to the parent's `reactions`
+  // array (which the YesCard stats line reads) when she closes the
+  // letter — so toggling doesn't spam duplicates into the stats.
+  const [picked, setPicked] = useState<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setTyped('');
     setDone(false);
-    setPicked(null);
+    setPicked(new Set());
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
     let i = 0;
     const iv = setInterval(() => {
@@ -55,9 +59,20 @@ export function LetterPopup({
     el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, [typed, done, open]);
 
-  const handleReact = (emoji: string) => {
-    setPicked(emoji);
-    onReact(emoji);
+  const toggleReact = (emoji: string) => {
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(emoji)) next.delete(emoji);
+      else next.add(emoji);
+      return next;
+    });
+  };
+
+  // Commit only the finally-picked set to parent reactions on close.
+  // Anything unpicked is never seen by the stats line.
+  const handleClose = () => {
+    picked.forEach((e) => onReact(e));
+    onClose();
   };
 
   return (
@@ -198,16 +213,14 @@ export function LetterPopup({
                   }}
                 >
                   {['😍', '🥹', '💕', '😭', '🤗'].map((e) => {
-                    const isPicked = picked === e;
-                    const dimOthers = !!picked && !isPicked;
+                    const isPicked = picked.has(e);
                     return (
                       <button
                         key={e}
-                        onClick={() => handleReact(e)}
+                        onClick={() => toggleReact(e)}
                         aria-label={`React ${e}`}
+                        aria-pressed={isPicked}
                         style={{
-                          // Size down slightly so all five fit even on
-                          // narrow phones without wrapping.
                           width: 42,
                           height: 42,
                           flexShrink: 0,
@@ -222,11 +235,10 @@ export function LetterPopup({
                             : withAlpha(t.palette.accent2, 0.08),
                           fontSize: 20,
                           cursor: 'pointer',
-                          transform: isPicked ? 'scale(1.25)' : 'scale(1)',
+                          transform: isPicked ? 'scale(1.22)' : 'scale(1)',
                           transition:
-                            'background 0.25s, transform 0.25s, opacity 0.25s, box-shadow 0.25s',
+                            'background 0.25s, transform 0.25s, box-shadow 0.25s',
                           backdropFilter: 'blur(6px)',
-                          opacity: dimOthers ? 0.35 : 1,
                           boxShadow: isPicked
                             ? `0 0 0 3px ${withAlpha(t.palette.accent, 0.35)}, 0 8px 22px ${withAlpha(t.palette.accent, 0.55)}`
                             : 'none',
@@ -238,7 +250,7 @@ export function LetterPopup({
                   })}
                 </div>
                 <button
-                  onClick={onClose}
+                  onClick={handleClose}
                   style={{
                     padding: '12px 28px',
                     borderRadius: 99,

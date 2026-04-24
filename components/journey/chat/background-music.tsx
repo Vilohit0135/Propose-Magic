@@ -24,7 +24,16 @@ export function BackgroundMusic({
   t: TemplateDef;
 }) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const [unmuted, setUnmuted] = useState(false);
+  // `muted` is the actual audio state of the iframe player. Starts true
+  // because we spawn the iframe with mute=1 so autoplay is honored. The
+  // first user gesture flips it via the effect below. The floating
+  // speaker pill is always visible so the receiver can toggle at will.
+  const [muted, setMuted] = useState(true);
+  // Mirrors `muted` so the long-lived gesture-listener effect below can
+  // read the current state without re-subscribing on every change.
+  // Specifically: once the user explicitly mutes via the pill, we stop
+  // re-unmuting them on every subsequent tap.
+  const userMutedRef = useRef(false);
 
   const src = useMemo(() => {
     const params = new URLSearchParams({
@@ -69,7 +78,23 @@ export function BackgroundMusic({
     command('unMute');
     command('setVolume', [55]);
     command('playVideo');
-    setUnmuted(true);
+    setMuted(false);
+    // User re-enabled audio explicitly — clear the latch so casual
+    // gestures can keep the song unmuted if something pauses it later.
+    userMutedRef.current = false;
+  };
+
+  const mute = () => {
+    command('mute');
+    setMuted(true);
+    // Latch so the gesture listeners below stop fighting the user's
+    // deliberate mute. The pill is the only way to unmute after this.
+    userMutedRef.current = true;
+  };
+
+  const toggleMute = () => {
+    if (muted) unmute();
+    else mute();
   };
 
   // Try to unmute as early as possible. Strategy:
@@ -86,7 +111,7 @@ export function BackgroundMusic({
   //      commands issued before YouTube finishes loading on its side.
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    let fired = false;
+    const retryTimers: number[] = [];
 
     const attempt = () => {
       command('unMute');
@@ -94,21 +119,22 @@ export function BackgroundMusic({
       command('playVideo');
     };
 
+    // Every gesture re-asserts unmuted playback — unless the user has
+    // explicitly silenced it via the pill (tracked via userMutedRef).
+    // This means the entry-gate tap, the ready-check tap, the letter
+    // close, and casual scrolling all get a fresh chance at unmuting,
+    // which covers the case where the iframe wasn't ready on the very
+    // first gesture.
     const fire = () => {
-      if (fired) return;
-      fired = true;
+      if (userMutedRef.current) return;
       attempt();
-      setUnmuted(true);
-      let n = 0;
-      const iv = window.setInterval(() => {
-        n += 1;
-        attempt();
-        if (n >= 8) window.clearInterval(iv);
-      }, 250);
+      setMuted(false);
+      [180, 420, 900].forEach((ms) => {
+        retryTimers.push(window.setTimeout(attempt, ms));
+      });
     };
 
-    // Optimistic attempts. These are cheap — if the browser refuses,
-    // the audio just stays muted until the first real gesture.
+    // Optimistic tries on mount — harmless if the browser blocks them.
     const earlyTries: number[] = [];
     [600, 1400, 2400].forEach((ms) => {
       earlyTries.push(window.setTimeout(attempt, ms));
@@ -129,6 +155,7 @@ export function BackgroundMusic({
 
     return () => {
       earlyTries.forEach((id) => window.clearTimeout(id));
+      retryTimers.forEach((id) => window.clearTimeout(id));
       events.forEach(([name, opts]) =>
         document.removeEventListener(name, fire, opts),
       );
@@ -159,38 +186,81 @@ export function BackgroundMusic({
           style={{ border: 0 }}
         />
       </div>
-      {!unmuted && (
-        <button
-          onClick={unmute}
-          aria-label="Turn on sound"
-          title="Turn on sound"
-          style={{
-            position: 'fixed',
-            bottom: 88,
-            right: 18,
-            zIndex: 180,
-            width: 42,
-            height: 42,
-            padding: 0,
-            borderRadius: '50%',
-            border: `1px solid ${withAlpha(t.palette.accent, 0.7)}`,
-            background: withAlpha(t.palette.accent, 0.22),
-            color: t.palette.text,
-            fontSize: 16,
-            cursor: 'pointer',
-            fontFamily: t.fonts.body,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backdropFilter: 'blur(10px)',
-            WebkitBackdropFilter: 'blur(10px)',
-            boxShadow: `0 4px 14px ${withAlpha(t.palette.accent, 0.4)}`,
-            animation: 'pulseBreath 2.4s infinite',
-          }}
-        >
-          🔊
-        </button>
-      )}
+      {/* Persistent mute/unmute pill. Stays visible the whole time the
+          receiver is on the page so she can quiet the song any time. */}
+      <button
+        onClick={toggleMute}
+        aria-label={muted ? 'Turn on sound' : 'Mute sound'}
+        aria-pressed={!muted}
+        title={muted ? 'Turn on sound' : 'Mute'}
+        style={{
+          position: 'fixed',
+          bottom: 88,
+          right: 18,
+          zIndex: 180,
+          width: 42,
+          height: 42,
+          padding: 0,
+          borderRadius: '50%',
+          border: `1px solid ${withAlpha(t.palette.accent, muted ? 0.7 : 0.4)}`,
+          background: withAlpha(t.palette.accent, muted ? 0.22 : 0.12),
+          color: t.palette.text,
+          fontSize: 16,
+          cursor: 'pointer',
+          fontFamily: t.fonts.body,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
+          boxShadow: `0 4px 14px ${withAlpha(t.palette.accent, muted ? 0.4 : 0.2)}`,
+          // Pulse only while muted — once audio is flowing, the button
+          // becomes a quiet background control that doesn't demand
+          // attention.
+          animation: muted ? 'pulseBreath 2.4s infinite' : undefined,
+          transition: 'background 0.2s, border-color 0.2s, box-shadow 0.2s',
+        }}
+      >
+        {muted ? <SpeakerOffIcon /> : <SpeakerOnIcon />}
+      </button>
     </>
+  );
+}
+
+function SpeakerOnIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+      <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+      <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+    </svg>
+  );
+}
+
+function SpeakerOffIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+      <line x1="23" y1="9" x2="17" y2="15" />
+      <line x1="17" y1="9" x2="23" y2="15" />
+    </svg>
   );
 }

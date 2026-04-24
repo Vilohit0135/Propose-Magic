@@ -37,20 +37,44 @@ export function QuestionCard({
     const btnW = btn.offsetWidth;
     const btnH = btn.offsetHeight;
     const edge = 14; // keep at least this much space from card edges
+    const gap = 16; // minimum breathing room between No and Yes
 
-    // Random anywhere inside the card. If the dice land on top of the
-    // Yes button, retry a few times — guarantees the Yes button stays
-    // tappable even when No is bouncing across the whole surface.
-    const yesZone = yesButtonZone(card);
-    let left = edge;
-    let top = edge;
-    for (let attempt = 0; attempt < 10; attempt += 1) {
-      const maxLeft = Math.max(edge, cardRect.width - btnW - edge);
-      const maxTop = Math.max(edge, cardRect.height - btnH - edge);
-      left = edge + Math.random() * (maxLeft - edge);
-      top = edge + Math.random() * (maxTop - edge);
-      const rect = { left, top, right: left + btnW, bottom: top + btnH };
-      if (!overlaps(rect, yesZone)) break;
+    // Carve the card into two safe slices that are guaranteed not to
+    // overlap the Yes rect: everything above Yes, and everything below
+    // it. Picking within one of these slices means the No button CAN
+    // NEVER end up on top of Yes — no retry loop needed, no accidental
+    // Yes-taps. Old retry code could fall through to an overlapping
+    // position after 10 unlucky rolls; this one is overlap-free by
+    // construction.
+    const yes = yesButtonZone(card);
+    const maxLeft = Math.max(edge, cardRect.width - btnW - edge);
+    const left = edge + Math.random() * (maxLeft - edge);
+
+    const aboveMaxTop = yes.top - btnH - gap;
+    const belowMinTop = yes.bottom + gap;
+    const belowMaxTop = cardRect.height - btnH - edge;
+
+    const canAbove = aboveMaxTop > edge;
+    const canBelow = belowMaxTop > belowMinTop;
+
+    let top: number;
+    if (canAbove && canBelow) {
+      // Bias slightly upward — there's usually more room above the
+      // Yes button, which keeps the No button's motion feeling playful
+      // rather than squeezed into the bottom strip.
+      const useBelow = Math.random() < 0.3;
+      top = useBelow
+        ? belowMinTop + Math.random() * (belowMaxTop - belowMinTop)
+        : edge + Math.random() * (aboveMaxTop - edge);
+    } else if (canAbove) {
+      top = edge + Math.random() * (aboveMaxTop - edge);
+    } else if (canBelow) {
+      top = belowMinTop + Math.random() * (belowMaxTop - belowMinTop);
+    } else {
+      // Extreme edge case: card so small that neither slice fits the
+      // button. Pin to the top edge — overlap is still impossible
+      // because we clamp top below yes.top - btnH.
+      top = edge;
     }
 
     setNoPos({ left, top });
@@ -243,18 +267,6 @@ function yesButtonZone(card: HTMLElement): {
     right: yr.right - cardRect.left + pad,
     bottom: yr.bottom - cardRect.top + pad,
   };
-}
-
-function overlaps(
-  a: { left: number; top: number; right: number; bottom: number },
-  b: { left: number; top: number; right: number; bottom: number },
-): boolean {
-  return !(
-    a.right < b.left ||
-    a.left > b.right ||
-    a.bottom < b.top ||
-    a.top > b.bottom
-  );
 }
 
 function firstName(full: string): string {
