@@ -212,7 +212,14 @@ export function MusicUrlInput({
                   }}
                   onBlur={() => commitStartField(startField)}
                   placeholder="e.g. 0:30 or 30"
-                  inputMode="numeric"
+                  // Regular text keyboard so the colon key is available —
+                  // the numeric keypad was hiding it, blocking inputs
+                  // like "1:55". Our parser still accepts plain seconds
+                  // ("30"), mm:ss ("1:30"), and "1m30s" forms.
+                  inputMode="text"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   style={{
                     width: '100%',
                     marginTop: 4,
