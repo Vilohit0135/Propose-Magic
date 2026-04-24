@@ -232,7 +232,37 @@ function PhotoUploadGrid({
   const [error, setError] = useState<string | null>(null);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
 
+  // Lazily imports the compressor only when the first photo upload runs —
+  // keeps it out of the main bundle for senders who never reach this step.
+  const compressImage = async (file: File): Promise<File> => {
+    // Files under 500KB are already small enough that re-encoding won't
+    // save meaningful bandwidth and may actually *increase* size via
+    // JPEG re-encoding overhead. Skip.
+    if (file.size < 500 * 1024) return file;
+    try {
+      const { default: imageCompression } = await import('browser-image-compression');
+      const compressed = await imageCompression(file, {
+        // Target: ~1.2MB per photo. At 2400px longest edge + JPEG q=0.82
+        // this keeps retina-quality for the chat bubbles while typically
+        // trimming 4MB camera rolls down to 600-900KB.
+        maxSizeMB: 1.2,
+        maxWidthOrHeight: 2400,
+        useWebWorker: true,
+        fileType: 'image/jpeg',
+        initialQuality: 0.82,
+      });
+      return compressed as File;
+    } catch (err) {
+      // HEIC from older Android browsers or any weird format → let the
+      // raw file through so the upload still succeeds. Cloudinary's own
+      // pipeline can usually convert it.
+      console.warn('[photo compress] falling back to raw file:', err);
+      return file;
+    }
+  };
+
   const uploadOne = async (file: File): Promise<string> => {
+    const compressed = await compressImage(file);
     const signResp = await fetch('/api/cloudinary/sign', { method: 'POST' });
     if (!signResp.ok) {
       if (signResp.status === 503) {
@@ -251,7 +281,7 @@ function PhotoUploadGrid({
     };
 
     const form = new FormData();
-    form.append('file', file);
+    form.append('file', compressed);
     form.append('api_key', sign.apiKey);
     form.append('timestamp', String(sign.timestamp));
     form.append('folder', sign.folder);

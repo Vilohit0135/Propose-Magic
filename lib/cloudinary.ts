@@ -1,5 +1,33 @@
 import { v2 as cloudinary } from 'cloudinary';
 
+// Rewrites a Cloudinary delivery URL to insert transform params after the
+// `upload/` segment. Cloudinary generates an optimized variant on first
+// request and caches it forever, so our storage stays full-fidelity but
+// receivers download ~60-80% smaller files.
+//
+//   input  : https://res.cloudinary.com/<cloud>/image/upload/v123/abc.jpg
+//   output : https://res.cloudinary.com/<cloud>/image/upload/q_auto,f_auto/v123/abc.jpg
+//
+// For videos we skip f_auto because it forces transcoding on first hit
+// and can stall playback on slow networks — quality auto is the safer
+// win, letting Cloudinary pick a lower bitrate while keeping the
+// original codec.
+export function optimizedDeliveryUrl(url: string, kind: 'image' | 'video'): string {
+  if (!url) return url;
+  try {
+    const u = new URL(url);
+    if (!u.hostname.endsWith('cloudinary.com')) return url;
+    if (!u.pathname.includes('/upload/')) return url;
+    // Don't double-apply if someone already inserted a transform.
+    if (/\/upload\/(?:[a-z]_[^/]+,?)+\//.test(u.pathname)) return url;
+    const transform = kind === 'video' ? 'q_auto' : 'q_auto,f_auto,dpr_auto';
+    u.pathname = u.pathname.replace('/upload/', `/upload/${transform}/`);
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
 // Parse the Cloudinary public_id out of a delivery URL. Shape:
 //   https://res.cloudinary.com/<cloud>/image|video/upload/.../<publicId>.<ext>
 // Returns null if the URL isn't ours (e.g. external hotlink) so the caller
