@@ -455,15 +455,15 @@ function EntryGate({
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.7 }}
             style={{
-              fontSize: 13,
-              letterSpacing: 2,
-              textTransform: 'uppercase',
+              fontFamily: t.fonts.display,
+              fontStyle: 'italic',
+              fontSize: 15,
               color: t.palette.muted,
-              maxWidth: 320,
+              maxWidth: 300,
               lineHeight: 1.6,
             }}
           >
-            Best with sound · Give it a quiet moment
+            Take a breath. Let it come slowly.
           </motion.div>
 
           <motion.div
