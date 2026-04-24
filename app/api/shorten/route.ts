@@ -4,24 +4,25 @@ import { NextResponse } from 'next/server';
 // shorteners chained as a fallback pair. Done server-side so browser
 // CORS restrictions don't block the calls.
 //
-// Chain: is.gd (primary) → tinyurl.com (fallback) → original URL.
+// Chain: tinyurl.com (primary) → is.gd (fallback) → original URL.
 //
-// Why this chain, and why not just one provider:
-//   - Both services produce PERMANENT URLs. Neither applies a TTL.
-//     (We pass `expires_at=+48h` to is.gd anyway so that even if their
-//      policy changes, our short link outlives the receiver page's
-//      own 48h window.)
-//   - is.gd is noticeably less aggressive with anti-abuse rules on
-//     *.vercel.app URLs, which TinyURL occasionally flags. is.gd going
-//     first means fewer "link broken" complaints.
-//   - TinyURL kept as a fallback in case is.gd is temporarily down.
-//   - If both fail, we return the original URL so the sender still
-//     gets something clickable — just unshortened.
+// Why tinyurl first:
+//   - is.gd sometimes shows a "phishing suspected" interstitial page
+//     for *.vercel.app destinations, which looks broken to receivers —
+//     they see a warning screen instead of the proposal.
+//   - TinyURL redirects straight through without warnings and does not
+//     flag ephemeral hosting domains.
+//   - is.gd kept as a fallback only in case TinyURL is temporarily
+//     rate-limited or down.
+//   - Both shorteners create PERMANENT redirects. The 48h expiry is
+//     enforced by the receiver page itself (status → EXPIRED), not the
+//     short link — so functionally the link goes dead after 48h by
+//     landing on the "faded" page, and the DB/Cloudinary are wiped.
 
 type ShortResult = {
   short: string;
   original: string;
-  provider: 'isgd' | 'tinyurl' | 'fallback';
+  provider: 'tinyurl' | 'isgd' | 'fallback';
 };
 
 export async function POST(req: Request) {
@@ -41,17 +42,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'invalid_url' }, { status: 400 });
   }
 
-  // Try is.gd first.
-  const isgd = await tryIsGd(url);
-  if (isgd) {
-    return NextResponse.json<ShortResult>({
-      short: isgd,
-      original: url,
-      provider: 'isgd',
-    });
-  }
-
-  // Fall back to tinyurl.
+  // Try TinyURL first — no phishing-interstitial for vercel.app.
   const tiny = await tryTinyUrl(url);
   if (tiny) {
     return NextResponse.json<ShortResult>({
@@ -61,9 +52,19 @@ export async function POST(req: Request) {
     });
   }
 
+  // Fall back to is.gd if TinyURL is down / rate-limited.
+  const isgd = await tryIsGd(url);
+  if (isgd) {
+    return NextResponse.json<ShortResult>({
+      short: isgd,
+      original: url,
+      provider: 'isgd',
+    });
+  }
+
   // Neither worked — return the original so the UI still has something
   // to show / share.
-  console.warn('[shorten] both is.gd and tinyurl failed, returning original');
+  console.warn('[shorten] both tinyurl and is.gd failed, returning original');
   return NextResponse.json<ShortResult>({
     short: url,
     original: url,
