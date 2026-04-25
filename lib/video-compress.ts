@@ -49,9 +49,15 @@ export async function compressVideo(
   }
 
   let objectUrl: string | null = null;
+  let audioCtx: AudioContext | null = null;
   const video = document.createElement('video');
   video.preload = 'auto';
-  video.muted = false;
+  // Triple-silenced: muted attribute + volume:0 + audio piped through a
+  // Web Audio destination that's NEVER connected to ctx.destination, so
+  // even though playback is happening (we need it to drive the draw loop
+  // and the audio capture), nothing reaches the speakers.
+  video.muted = true;
+  video.volume = 0;
   video.playsInline = true;
   video.crossOrigin = 'anonymous';
 
@@ -75,14 +81,17 @@ export async function compressVideo(
     }
     const canvasStream = canvas.captureStream(30);
 
-    // Grab audio tracks from the source video. captureStream on
-    // HTMLVideoElement is what lets us pull audio out. Safari < 16
-    // doesn't support this — we upload the raw file in that case.
-    const audioTracks = getAudioTracks(video);
+    // Grab the audio track via Web Audio API instead of HTMLVideoElement
+    // captureStream. The Web Audio path lets us tap the audio data
+    // *without* routing it to the speakers — `source.connect(destination)`
+    // sends to the MediaStream, but we never call connect(audioCtx.destination)
+    // so the user doesn't hear the video while it processes.
+    const audioCapture = createSilentAudioCapture(video);
+    audioCtx = audioCapture?.ctx ?? null;
 
     const combined = new MediaStream([
       ...canvasStream.getVideoTracks(),
-      ...audioTracks,
+      ...(audioCapture?.tracks ?? []),
     ]);
 
     const recorder = new MediaRecorder(combined, {
@@ -159,6 +168,11 @@ export async function compressVideo(
     } catch {
       // ignored
     }
+    try {
+      void audioCtx?.close();
+    } catch {
+      // ignored
+    }
   }
 }
 
@@ -222,17 +236,35 @@ function waitForEnd(video: HTMLVideoElement): Promise<void> {
   });
 }
 
-type CaptureableVideo = HTMLVideoElement & {
-  captureStream?: () => MediaStream;
-  mozCaptureStream?: () => MediaStream;
-};
-
-function getAudioTracks(video: HTMLVideoElement): MediaStreamTrack[] {
+// Pipes the video's audio through Web Audio so we can capture the
+// stream WITHOUT routing it to the speakers. Connecting source →
+// destinationNode is the "tap" — and crucially we never call
+// `source.connect(audioCtx.destination)`, which is the only path that
+// would make audio audible. Net result: the recorder gets clean audio
+// frames while the user hears nothing during compression.
+function createSilentAudioCapture(
+  video: HTMLVideoElement,
+): { ctx: AudioContext; tracks: MediaStreamTrack[] } | null {
   try {
-    const v = video as CaptureableVideo;
-    const stream = v.captureStream?.() ?? v.mozCaptureStream?.() ?? null;
-    return stream ? stream.getAudioTracks() : [];
+    const Ctor =
+      typeof window !== 'undefined'
+        ? (window.AudioContext ||
+            (window as unknown as { webkitAudioContext?: typeof AudioContext })
+              .webkitAudioContext)
+        : null;
+    if (!Ctor) return null;
+    const ctx = new Ctor();
+    const source = ctx.createMediaElementSource(video);
+    const destination = ctx.createMediaStreamDestination();
+    source.connect(destination);
+    // Intentionally NOT connecting source to ctx.destination — that's
+    // what would send audio to the user's speakers.
+    return { ctx, tracks: destination.stream.getAudioTracks() };
   } catch {
-    return [];
+    // createMediaElementSource throws if called twice on the same video,
+    // or in environments without Web Audio. We've created a fresh video
+    // element so the former shouldn't happen, but the catch keeps the
+    // rest of the compressor working without audio in degenerate cases.
+    return null;
   }
 }
