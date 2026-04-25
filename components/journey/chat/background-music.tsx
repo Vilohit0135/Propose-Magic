@@ -68,9 +68,16 @@ export function BackgroundMusic({
   // `muted` reflects the *player's* actual mute state. `userMutedRef`
   // latches true when the receiver explicitly mutes via the pill — the
   // background gesture listeners respect that and stop fighting her.
+  // `wantsAudioRef` flips true on the very first user gesture (typically
+  // the entry-gate tap). When the player finally becomes ready, if this
+  // flag is set we start UNMUTED — the gesture has already given us
+  // permission. Without this, players that finished loading after the
+  // gate tap would stay muted forever because no fresh gesture was
+  // available to unmute.
   const [muted, setMuted] = useState(true);
   const [ready, setReady] = useState(false);
   const userMutedRef = useRef(false);
+  const wantsAudioRef = useRef(false);
 
   useEffect(() => {
     if (!videoId || typeof window === 'undefined') return;
@@ -104,12 +111,22 @@ export function BackgroundMusic({
             onReady: ({ target }) => {
               setReady(true);
               try {
-                // Seek to start FIRST, then play. Doing this via the
-                // actual player method (not URL param) is the reliable
-                // path when combined with loop=1+playlist.
-                target.mute();
+                // Seek first so the song begins at the chosen timestamp
+                // rather than zero (only on first play; loop wrap is
+                // handled in onStateChange below).
                 if (startSeconds && startSeconds > 0) {
                   target.seekTo(startSeconds, true);
+                }
+                // Decide whether to start with sound. If the user has
+                // already tapped the entry gate (or anywhere) before the
+                // player finished loading, that gesture grants us audio
+                // permission — start unmuted so she doesn't have to
+                // reach for the pill. Otherwise, stay muted and rely on
+                // the next gesture to unmute via the listeners below.
+                if (wantsAudioRef.current && !userMutedRef.current) {
+                  target.unMute();
+                  target.setVolume(55);
+                  setMuted(false);
                 }
                 target.playVideo();
               } catch {
@@ -187,6 +204,9 @@ export function BackgroundMusic({
     };
 
     const onGesture = () => {
+      // Latch consent. Even if the player isn't ready yet, onReady
+      // (whenever it fires) will read this flag and start unmuted.
+      if (!userMutedRef.current) wantsAudioRef.current = true;
       attemptUnmute();
       // Retry for ~1.5s in case the player wasn't ready on the first
       // gesture (common on the entry-gate tap).
@@ -222,8 +242,13 @@ export function BackgroundMusic({
   const mute = () => {
     setMuted(true);
     userMutedRef.current = true;
+    wantsAudioRef.current = false;
     try {
       playerRef.current?.mute();
+      // Belt-and-braces: pause then resume to ensure the mute commits
+      // even if the player is in a transitional state.
+      playerRef.current?.pauseVideo?.();
+      playerRef.current?.playVideo?.();
     } catch {
       // player not ready — state flip is still correct for UI, and the
       // autoplay listener respects userMutedRef so audio stays silent.
@@ -233,10 +258,14 @@ export function BackgroundMusic({
   const unmute = () => {
     setMuted(false);
     userMutedRef.current = false;
+    wantsAudioRef.current = true;
     try {
-      playerRef.current?.unMute();
-      playerRef.current?.setVolume(55);
-      playerRef.current?.playVideo();
+      const p = playerRef.current;
+      if (p) {
+        p.unMute();
+        p.setVolume(55);
+        p.playVideo();
+      }
     } catch {
       // ignore
     }
