@@ -19,6 +19,21 @@ function str(v: unknown, max = 200): string {
   return v.slice(0, max);
 }
 
+// Normalize a phone number to a Twilio-friendly form. Strips spaces,
+// dashes, brackets. Keeps the leading + if present, else attempts to
+// add one if input looks like a digits-only string. Returns null when
+// the result doesn't look like a valid international number.
+function normalizePhone(raw: string): string | null {
+  if (!raw) return null;
+  const cleaned = raw.replace(/[\s\-()]/g, '');
+  // Already E.164 (e.g. +919876543210)
+  if (/^\+\d{8,15}$/.test(cleaned)) return cleaned;
+  // Bare digits — assume the sender forgot the +. We don't know their
+  // country, so accept it as-is but prepend + so Twilio won't reject.
+  if (/^\d{8,15}$/.test(cleaned)) return `+${cleaned}`;
+  return null;
+}
+
 export async function POST(req: Request) {
   let body: Record<string, unknown>;
   try {
@@ -32,6 +47,11 @@ export async function POST(req: Request) {
   const from_gender = ALLOWED_GENDERS.has(from_gender_raw) ? from_gender_raw : 'they';
   const to_name = str(body.to_name, 100).trim();
   const email = str(body.email, 200).trim();
+  // Sender's WhatsApp number — normalized to E.164ish (digits + leading +).
+  // Optional. We accept it but never require it; if missing, the yes
+  // notification falls back to email-only.
+  const from_phone_raw = str(body.from_phone, 20).trim();
+  const from_phone = normalizePhone(from_phone_raw);
   const flow = str(body.flow, 30);
   const sub_flow = str(body.sub_flow, 50);
   const tone = str(body.tone, 30);
@@ -73,6 +93,7 @@ export async function POST(req: Request) {
     to_name,
     story: str(body.story, 2000) || null,
     email,
+    from_phone,
     flow: flow as OrderDraft['flow'],
     sub_flow,
     is_anonymous: body.is_anonymous === true,

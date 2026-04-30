@@ -53,6 +53,7 @@ function normalize(row: Record<string, unknown>): Order {
     to_name: (row.to_name as string) ?? '',
     story: (row.story as string | null) ?? null,
     email: (row.email as string) ?? '',
+    from_phone: (row.from_phone as string | null) ?? null,
 
     flow: row.flow as Order['flow'],
     sub_flow: row.sub_flow as string,
@@ -122,6 +123,7 @@ function buildOrder(draft: OrderDraft, shortId: string): Order {
     to_name: draft.to_name,
     story: draft.story ?? null,
     email: draft.email,
+    from_phone: draft.from_phone ?? null,
 
     flow: draft.flow,
     sub_flow: draft.sub_flow,
@@ -299,6 +301,7 @@ export async function expireOrder(id: string): Promise<Order | null> {
     from_name: '',
     to_name: '',
     email: '',
+    from_phone: null,
     story: null,
     generated_message: null,
     photo_urls: [],

@@ -17,6 +17,7 @@ function makeState(overrides: Partial<OrderState>): OrderState {
     toName: 'Priya',
     story: '',
     email: 'demo@proposemagic.in',
+    fromPhone: '',
     flow: 'propose',
     subFlow: 'marriage',
     tone: 'romantic',

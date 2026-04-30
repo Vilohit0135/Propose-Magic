@@ -173,7 +173,7 @@ export function RefundForm() {
         <button
           type="submit"
           disabled={submitting}
-          className="rounded-full bg-ink px-6 py-3 text-sm font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-full bg-rose px-6 py-3 text-sm font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {submitting ? 'Sending…' : 'Send refund request →'}
         </button>

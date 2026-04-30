@@ -341,3 +341,83 @@ button {
     display: none !important;
   }
 }
+
+/* Marketing page promo banner marquee — track is duplicated 2x and
+   animates -50% so the loop is seamless. Pauses while hovered. */
+@keyframes promoMarquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.promo-marquee:hover .promo-marquee-track {
+  animation-play-state: paused;
+}
+
+/* Cycles the question card in/out for the services-page propose
+   hero animation. 14s loop: chat bubbles play out for ~5s, then the
+   question card swells in and rests for ~6s before fading back. */
+@keyframes questionPulse {
+  0%, 35% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.8);
+  }
+  45%, 80% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  90%, 100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.85);
+  }
+}
+
+/* Sister effect to petalFall — small glowing orbs rising from the
+   bottom with a gentle horizontal sway, used by RoseSparkles in
+   alternating sections so they feel ambient but distinct from the
+   hero's petal-fall effect. */
+@keyframes sparkleRise {
+  0% {
+    transform: translate(0, 20px) scale(0.8);
+    opacity: 0;
+  }
+  15% {
+    opacity: var(--sparkle-opacity, 0.5);
+  }
+  50% {
+    transform: translate(var(--sparkle-drift, 0px), -45vh) scale(1);
+  }
+  85% {
+    opacity: var(--sparkle-opacity, 0.5);
+  }
+  100% {
+    transform: translate(0, -90vh) scale(0.7);
+    opacity: 0;
+  }
+}
+
+/* Tiny petals drifting *across* the nav pill horizontally. Each petal
+   travels from -8% to 108% with a soft vertical sway and gentle rotation,
+   so the motion is unmistakably visible even though the pill is short. */
+@keyframes navPetalDrift {
+  0% {
+    transform: translate(-10vw, 0) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: var(--nav-petal-opacity, 0.5);
+  }
+  50% {
+    transform: translate(40vw, -3px) rotate(220deg);
+    opacity: var(--nav-petal-opacity, 0.5);
+  }
+  90% {
+    opacity: var(--nav-petal-opacity, 0.5);
+  }
+  100% {
+    transform: translate(110vw, 0) rotate(540deg);
+    opacity: 0;
+  }
+}

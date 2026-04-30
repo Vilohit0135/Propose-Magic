@@ -8,6 +8,7 @@ export function orderToState(o: Order): OrderState {
     toName: o.to_name,
     story: o.story ?? '',
     email: o.email,
+    fromPhone: o.from_phone ?? '',
     flow: o.flow,
     subFlow: o.sub_flow,
     tone: o.tone,

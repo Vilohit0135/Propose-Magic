@@ -35,6 +35,7 @@ export type Order = {
   to_name: string;
   story: string | null;
   email: string;
+  from_phone: string | null;
 
   flow: FlowId;
   sub_flow: string;
@@ -95,6 +96,7 @@ export type OrderDraft = Pick<
   | 'to_name'
   | 'story'
   | 'email'
+  | 'from_phone'
   | 'flow'
   | 'sub_flow'
   | 'is_anonymous'

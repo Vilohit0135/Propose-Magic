@@ -10,6 +10,7 @@ const INITIAL: OrderState = {
   toName: '',
   story: '',
   email: '',
+  fromPhone: '',
   flow: 'propose',
   subFlow: 'marriage',
   tone: 'romantic',
@@ -32,16 +33,20 @@ const INITIAL: OrderState = {
 
 export function CreationFlowPage() {
   const [state, setState] = useState<OrderState>(INITIAL);
+  // <div> instead of nested <main> — the marketing layout already
+  // wraps children in <main>. paddingTop gives breathing room below
+  // the sticky nav so the wizard doesn't feel jammed up against it
+  // when she opens /create.
   return (
-    <main
+    <div
       style={{
         position: 'relative',
         width: '100%',
         minHeight: '100dvh',
-        background: '#fafaf7',
+        paddingTop: 32,
       }}
     >
       <CreationFlow state={state} setState={setState} />
-    </main>
+    </div>
   );
 }

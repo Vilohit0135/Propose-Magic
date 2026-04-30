@@ -15,6 +15,7 @@ function orderStateToPayload(s: OrderState) {
     to_name: s.toName,
     story: s.story || null,
     email: s.email,
+    from_phone: s.fromPhone || null,
     flow: s.flow,
     sub_flow: s.subFlow,
     is_anonymous: s.isAnonymous,

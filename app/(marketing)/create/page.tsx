@@ -1,4 +1,4 @@
-import { CreationFlowPage } from '../creation-flow-page';
+import { CreationFlowPage } from '../../creation-flow-page';
 
 export const metadata = {
   title: 'Create — ProposeMagic',

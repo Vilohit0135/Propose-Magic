@@ -31,6 +31,10 @@ export type OrderState = {
   toName: string;
   story: string;
   email: string;
+  // Sender's WhatsApp number in E.164 format (+919876543210). Used by the
+  // backend to send a "she said yes" notification when the receiver taps
+  // YES. Optional — if missing, only the email notification fires.
+  fromPhone: string;
   flow: FlowId;
   subFlow: string;
   tone: ToneId;

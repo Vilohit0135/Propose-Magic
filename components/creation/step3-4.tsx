@@ -199,6 +199,23 @@ export function Step4({ state, setState }: { state: OrderState; setState: SetSta
         onChange={(v) => setState((s) => ({ ...s, email: v }))}
         placeholder="you@example.com"
       />
+      <Field
+        label="Your WhatsApp (optional)"
+        value={state.fromPhone}
+        onChange={(v) => setState((s) => ({ ...s, fromPhone: v }))}
+        placeholder="+91 9876543210"
+      />
+      <div
+        style={{
+          fontSize: 11,
+          color: '#888',
+          lineHeight: 1.5,
+          marginTop: -8,
+          marginBottom: 8,
+        }}
+      >
+        We&apos;ll WhatsApp you the moment {state.toName || 'they'} say&apos;s yes.
+      </div>
       <div
         style={{
           background: '#f9f9f9',

@@ -64,7 +64,7 @@ export default function AboutPage() {
       <div className="mt-14 flex flex-wrap gap-3">
         <Link
           href="/create"
-          className="rounded-full bg-ink px-6 py-3 text-sm font-semibold text-white hover:opacity-90"
+          className="rounded-full bg-rose-deep px-6 py-3 text-sm font-semibold text-white hover:opacity-90"
         >
           Create yours →
         </Link>

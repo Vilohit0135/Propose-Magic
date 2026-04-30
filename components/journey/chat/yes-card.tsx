@@ -35,6 +35,27 @@ export function YesCard({
     };
   }, []);
 
+  // Fire-and-forget POST to the yes endpoint on mount. Server records
+  // the click + sends email + WhatsApp to the sender. Idempotent server
+  // side, so a re-mount (page reload during celebration) won't double-
+  // notify. We don't await — receiver's UI shouldn't wait on Twilio.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const path = window.location.pathname;
+    const m = path.match(/\/p\/([^/?#]+)/);
+    if (!m) return;
+    const shortId = m[1];
+    void fetch(`/api/by-short-id/${shortId}/yes`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ hearts, reactions }),
+    }).catch(() => {
+      // network hiccup — receiver still sees their celebration page
+    });
+    // Only ever fire once on mount of the YesCard.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const mins = Math.max(1, Math.round((Date.now() - startTime) / 60000));
   const firstTo = state.toName.trim().split(/\s+/)[0] || 'they';
   const firstFrom = state.fromName.trim().split(/\s+/)[0] || 'someone';
@@ -281,7 +302,7 @@ export function YesCard({
         >
           You took {mins} min · Sent {hearts} hearts
           {reactions.length > 0 &&
-            ` · Reacted with ${[...new Set(reactions)].slice(0, 3).join('')}`}
+            ` · Reacted with ${[...new Set(reactions)].join('')}`}
         </motion.div>
 
         {showCTA && (
