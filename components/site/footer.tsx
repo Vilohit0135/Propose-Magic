@@ -45,8 +45,10 @@ export function Footer() {
       />
 
       <div className="relative mx-auto max-w-6xl px-5 pt-16 md:px-8 md:pt-20">
-        {/* Brand row + nav columns */}
-        <div className="grid gap-12 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
+        {/* Desktop: 4-column row (brand + 3 link cols).
+            Mobile: brand stacks on top, then 3 link cols side-by-side
+            below — never one-per-row, even on the narrowest phones. */}
+        <div className="md:grid md:grid-cols-[1.4fr_1fr_1fr_1fr] md:gap-12">
           <div>
             <Link
               href="/"
@@ -81,25 +83,32 @@ export function Footer() {
             </Link>
           </div>
 
-          {COLUMNS.map((col) => (
-            <div key={col.title}>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.25em] text-rose-deep">
-                {col.title}
+          {/* On mobile, wrap the three link columns in their own
+              3-column grid so they sit side-by-side instead of
+              stacking vertically. On desktop, this wrapper "dissolves"
+              via display:contents so the existing 4-col grid layout
+              still applies as designed. */}
+          <div className="mt-12 grid grid-cols-3 gap-4 md:contents md:mt-0">
+            {COLUMNS.map((col) => (
+              <div key={col.title}>
+                <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-rose-deep md:text-[11px] md:tracking-[0.25em]">
+                  {col.title}
+                </div>
+                <ul className="mt-4 space-y-2.5 md:mt-5 md:space-y-3">
+                  {col.links.map((l) => (
+                    <li key={l.href}>
+                      <Link
+                        href={l.href}
+                        className="text-xs text-ink-muted transition-colors hover:text-rose-deep md:text-sm"
+                      >
+                        {l.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <ul className="mt-5 space-y-3">
-                {col.links.map((l) => (
-                  <li key={l.href}>
-                    <Link
-                      href={l.href}
-                      className="text-sm text-ink-muted transition-colors hover:text-rose-deep"
-                    >
-                      {l.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
         {/* Bottom strip — copyright + locale + credit */}
