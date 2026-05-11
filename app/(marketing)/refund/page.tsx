@@ -26,7 +26,7 @@ export default function RefundPage() {
               end), we refund the full amount within 24 hours. You don&apos;t need to ask.
             </li>
             <li>
-              <strong className="text-ink">Duplicate charge.</strong> If Razorpay accidentally
+              <strong className="text-ink">Duplicate charge.</strong> If Cashfree accidentally
               charges you twice for the same order, we refund the extra charge automatically.
             </li>
           </ul>
@@ -89,7 +89,7 @@ export default function RefundPage() {
 
         <Section title="Processing time">
           <p>
-            Once we approve a refund, Razorpay processes it in 5–7 business days. The money
+            Once we approve a refund, Cashfree processes it in 5–7 business days. The money
             lands back in the original payment method — UPI, card, netbanking, or wallet. Banks
             occasionally take another 1–2 days to show it in your account.
           </p>

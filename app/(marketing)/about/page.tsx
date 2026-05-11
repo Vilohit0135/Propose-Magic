@@ -29,7 +29,7 @@ export default function AboutPage() {
 
         <p className="mt-5">
           Under the hood: Claude Haiku writes the message, Next.js and React render the journey,
-          Razorpay handles payments, Cloudinary stores the media, Resend sends the email. Six
+          Cashfree handles payments, Cloudinary stores the media, Resend sends the email. Six
           templates, four flows, 31 sub-flows, three reveal mechanics. Five tones of voice.
           All of it assembled in the minute it takes you to pour a glass of water.
         </p>

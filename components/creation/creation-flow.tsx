@@ -4,11 +4,45 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import type { OrderState } from '@/lib/types';
+import { PACKAGES } from '@/lib/tokens';
+import { getOrCreateUserUuid } from '@/lib/user-uuid';
 import { Step1 } from './step1';
 import { Step2 } from './step2';
 import { Step3, Step4 } from './step3-4';
 import { Step5 } from './step5';
 import { RosePetals } from '../site/rose-petals';
+
+// Mirror of /api/order/create's expected body shape. Lifted out of
+// step5.tsx (which used to own the create call) so the pay handler in
+// CreationFlow can hit /api/order/create itself.
+function orderStateToPayload(s: OrderState) {
+  return {
+    from_name: s.fromName,
+    from_gender: s.fromGender,
+    to_name: s.toName,
+    story: s.story || null,
+    email: s.email,
+    from_phone: s.fromPhone || null,
+    flow: s.flow,
+    sub_flow: s.subFlow,
+    is_anonymous: s.isAnonymous,
+    reveal_style: s.isAnonymous ? s.revealStyle : null,
+    reveal_difficulty: s.isAnonymous ? s.revealDifficulty : null,
+    reveal_content: s.isAnonymous ? s.revealContent : null,
+    package_type: s.package,
+    tone: s.tone,
+    template: s.template,
+    photo_urls: s.package === 'basic' ? [] : s.photos,
+    photo_captions: [],
+    photo_layout: s.package === 'basic' ? null : s.photoLayout,
+    scratch_photo_index: s.scratchIndex,
+    video_url: s.package === 'photos_video' ? (s.videos[0] ?? null) : null,
+    video_clip_urls: s.package === 'photos_video' ? s.videos : [],
+    video_treatment: s.package === 'photos_video' ? s.videoTreatment : null,
+    music_video_id: s.musicVideoId,
+    music_start_seconds: s.musicStartSeconds,
+  };
+}
 
 type SetState = React.Dispatch<React.SetStateAction<OrderState>>;
 
@@ -21,6 +55,13 @@ export function CreationFlow({
 }) {
   const router = useRouter();
   const [step, setStep] = useState(1);
+  // Set after a successful checkout (or after /api/order/create returns
+  // GENERATING in the no-Cashfree dev fallback). Step 5 receives these
+  // and just polls — it no longer creates the order itself.
+  const [paidOrder, setPaidOrder] = useState<{ id: string; shortId: string } | null>(null);
+  const [paying, setPaying] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
+
   const next = () => setStep((s) => Math.min(s + 1, 5));
   const back = () => {
     if (step === 1) {
@@ -28,6 +69,94 @@ export function CreationFlow({
       return;
     }
     setStep((s) => Math.max(s - 1, 1));
+  };
+
+  // The Step 4 footer CTA. Creates the order, opens the Cashfree
+  // checkout modal (when Cashfree is configured server-side), verifies
+  // the result, and advances to Step 5 with the order id in hand.
+  const handlePay = async () => {
+    if (paying) return;
+    setPaying(true);
+    setPayError(null);
+    try {
+      const userUuid = getOrCreateUserUuid();
+
+      // 1. Create the order. Returns { status: 'PENDING' } when Cashfree
+      //    is configured, or { status: 'GENERATING' } in dev fallback.
+      const createRes = await fetch('/api/order/create', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          ...orderStateToPayload(state),
+          user_uuid: userUuid,
+        }),
+      });
+      if (!createRes.ok) {
+        const err = await createRes.json().catch(() => ({}));
+        throw new Error(err.error || 'create_failed');
+      }
+      const created = (await createRes.json()) as {
+        id: string;
+        short_id: string;
+        status: 'PENDING' | 'GENERATING';
+      };
+
+      // Dev fallback path — no Cashfree configured, generation already
+      // running. Skip checkout and jump straight to Step 5.
+      if (created.status === 'GENERATING') {
+        setPaidOrder({ id: created.id, shortId: created.short_id });
+        setStep(5);
+        return;
+      }
+
+      // 2. Ask the server for a Cashfree payment session.
+      const orderRes = await fetch('/api/cashfree/order', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ order_id: created.id }),
+      });
+      if (!orderRes.ok) {
+        const err = await orderRes.json().catch(() => ({}));
+        throw new Error(err.error || 'cashfree_init_failed');
+      }
+      const session = (await orderRes.json()) as {
+        payment_session_id: string;
+        mode: 'sandbox' | 'production';
+      };
+
+      // 3. Open the Cashfree modal. Dynamic import so the SDK only
+      //    lands in the bundle for users who actually reach Step 4.
+      const { load } = await import('@cashfreepayments/cashfree-js');
+      const cashfree = await load({ mode: session.mode });
+      await cashfree.checkout({
+        paymentSessionId: session.payment_session_id,
+        redirectTarget: '_modal',
+      });
+
+      // 4. Modal closed. Verify against Cashfree (don't trust the
+      //    callback shape). On PAID, the verify route also fires
+      //    generation server-side.
+      const verifyRes = await fetch('/api/cashfree/verify', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ order_id: created.id }),
+      });
+      const verify = (await verifyRes.json()) as { status: string };
+
+      if (verify.status === 'PAID') {
+        setPaidOrder({ id: created.id, shortId: created.short_id });
+        setStep(5);
+      } else if (verify.status === 'FAILED') {
+        setPayError('Payment failed. Please try again.');
+      } else {
+        // Modal closed without paying (PENDING). Silent — user can retry.
+        setPayError(null);
+      }
+    } catch (e) {
+      setPayError(e instanceof Error ? e.message : 'unknown_error');
+    } finally {
+      setPaying(false);
+    }
   };
 
   // Reset scroll to top whenever the active step changes, so each step opens
@@ -39,8 +168,8 @@ export function CreationFlow({
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
   }, [step]);
 
-  if (step === 5) {
-    return <Step5 state={state} />;
+  if (step === 5 && paidOrder) {
+    return <Step5 state={state} orderId={paidOrder.id} shortId={paidOrder.shortId} />;
   }
 
   return (
@@ -168,24 +297,42 @@ export function CreationFlow({
                 paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 20px)',
               }}
             >
+              {payError && (
+                <div
+                  style={{
+                    fontSize: 13,
+                    color: '#c0392b',
+                    marginBottom: 10,
+                    textAlign: 'center',
+                  }}
+                >
+                  {payError}
+                </div>
+              )}
               <button
-                onClick={step === 4 ? () => next() : next}
-                disabled={!canAdvance(step, state)}
+                onClick={step === 4 ? handlePay : next}
+                disabled={!canAdvance(step, state) || paying}
                 style={{
                   width: '100%',
                   height: 54,
                   borderRadius: 14,
                   border: 'none',
-                  background: canAdvance(step, state) ? '#1a1a1a' : '#d4d4d4',
+                  background:
+                    canAdvance(step, state) && !paying ? '#1a1a1a' : '#d4d4d4',
                   color: '#fff',
                   fontSize: 16,
                   fontWeight: 600,
                   letterSpacing: 0.2,
-                  cursor: canAdvance(step, state) ? 'pointer' : 'not-allowed',
+                  cursor:
+                    canAdvance(step, state) && !paying ? 'pointer' : 'not-allowed',
                   transition: 'all 0.2s',
                 }}
               >
-                {step === 4 ? 'Generate my page →' : 'Continue →'}
+                {step === 4
+                  ? paying
+                    ? 'Opening checkout…'
+                    : `Pay ₹${PACKAGES[state.package]?.price ?? ''} →`
+                  : 'Continue →'}
               </button>
             </div>
           </div>

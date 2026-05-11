@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { OrderState } from '@/lib/types';
 import { Grain } from '../particles';
@@ -8,104 +8,52 @@ import { RosePetals } from '../site/rose-petals';
 
 type Phase = 'generating' | 'delivered' | 'failed';
 
-function orderStateToPayload(s: OrderState) {
-  return {
-    from_name: s.fromName,
-    from_gender: s.fromGender,
-    to_name: s.toName,
-    story: s.story || null,
-    email: s.email,
-    from_phone: s.fromPhone || null,
-    flow: s.flow,
-    sub_flow: s.subFlow,
-    is_anonymous: s.isAnonymous,
-    reveal_style: s.isAnonymous ? s.revealStyle : null,
-    reveal_difficulty: s.isAnonymous ? s.revealDifficulty : null,
-    reveal_content: s.isAnonymous ? s.revealContent : null,
-    package_type: s.package,
-    tone: s.tone,
-    template: s.template,
-    photo_urls: s.package === 'basic' ? [] : s.photos,
-    photo_captions: [],
-    photo_layout: s.package === 'basic' ? null : s.photoLayout,
-    scratch_photo_index: s.scratchIndex,
-    // Send the whole clips list to video_clip_urls; keep video_url as the
-    // first clip so legacy reads still see *something*. Both columns already
-    // exist on the orders table.
-    video_url: s.package === 'photos_video' ? (s.videos[0] ?? null) : null,
-    video_clip_urls: s.package === 'photos_video' ? s.videos : [],
-    video_treatment: s.package === 'photos_video' ? s.videoTreatment : null,
-    music_video_id: s.musicVideoId,
-    music_start_seconds: s.musicStartSeconds,
-  };
-}
-
-export function Step5({ state }: { state: OrderState }) {
+// Step 5 is now a pure "watch generation" screen. The order is created
+// (and paid for, in production) by the parent CreationFlow before this
+// step renders, and the resulting id + short_id are passed in.
+export function Step5({
+  state,
+  orderId,
+  shortId: initialShortId,
+}: {
+  state: OrderState;
+  orderId: string;
+  shortId: string;
+}) {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>('generating');
   const [progress, setProgress] = useState(0);
-  const [shortId, setShortId] = useState<string | null>(null);
+  const [shortId] = useState<string | null>(initialShortId);
   const [error, setError] = useState<string | null>(null);
-  const createPromiseRef = useRef<Promise<{ id: string; short_id: string }> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
-    const ensureCreated = () => {
-      if (!createPromiseRef.current) {
-        createPromiseRef.current = (async () => {
-          const res = await fetch('/api/order/create', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify(orderStateToPayload(state)),
-          });
-          if (!res.ok) {
-            const err = await res.json().catch(() => ({ error: 'create_failed' }));
-            throw new Error(err.error || 'create_failed');
-          }
-          return (await res.json()) as { id: string; short_id: string };
-        })();
-      }
-      return createPromiseRef.current;
-    };
-
     const run = async () => {
-      try {
-        const created = await ensureCreated();
-        if (cancelled) return;
-        setShortId(created.short_id);
-
-        while (!cancelled) {
-          try {
-            const res = await fetch(`/api/order/${created.id}/status`);
-            if (res.ok) {
-              const data = (await res.json()) as { status: string };
-              if (data.status === 'COMPLETED') {
-                if (!cancelled) {
-                  setProgress(100);
-                  setPhase('delivered');
-                }
-                return;
+      while (!cancelled) {
+        try {
+          const res = await fetch(`/api/order/${orderId}/status`);
+          if (res.ok) {
+            const data = (await res.json()) as { status: string };
+            if (data.status === 'COMPLETED') {
+              if (!cancelled) {
+                setProgress(100);
+                setPhase('delivered');
               }
-              if (data.status === 'FAILED') {
-                if (!cancelled) {
-                  setError('generation_failed');
-                  setPhase('failed');
-                }
-                return;
-              }
+              return;
             }
-          } catch {
-            // transient; retry
+            if (data.status === 'FAILED') {
+              if (!cancelled) {
+                setError('generation_failed');
+                setPhase('failed');
+              }
+              return;
+            }
           }
-          await new Promise((r) => setTimeout(r, 1000));
+        } catch {
+          // transient; retry
         }
-      } catch (e) {
-        createPromiseRef.current = null;
-        if (!cancelled) {
-          setError(e instanceof Error ? e.message : 'unknown_error');
-          setPhase('failed');
-        }
+        await new Promise((r) => setTimeout(r, 1000));
       }
     };
 
@@ -113,7 +61,7 @@ export function Step5({ state }: { state: OrderState }) {
     return () => {
       cancelled = true;
     };
-  }, [state]);
+  }, [orderId]);
 
   useEffect(() => {
     if (phase !== 'generating') return;
@@ -121,19 +69,15 @@ export function Step5({ state }: { state: OrderState }) {
     return () => clearInterval(iv);
   }, [phase]);
 
-  const retry = () => {
-    createPromiseRef.current = null;
-    setError(null);
-    setProgress(0);
-    setShortId(null);
-    setPhase('generating');
-  };
-
   const openPage = () => {
     if (shortId) router.push(`/p/${shortId}`);
   };
 
-  if (phase === 'failed') return <FailedScreen error={error} onRetry={retry} />;
+  // No retry button on failure: payment has already gone through, so a
+  // client-side "try again" would be misleading. Show a contact-us
+  // message instead. (Future: a /api/order/{id}/regenerate endpoint
+  // could re-fire generation without re-charging.)
+  if (phase === 'failed') return <FailedScreen error={error} email={state.email} />;
   if (phase === 'delivered' && shortId)
     return <DeliveredScreen state={state} shortId={shortId} onOpen={openPage} />;
   return <GeneratingScreen progress={progress} />;
@@ -377,7 +321,7 @@ function DeliveredScreen({
   );
 }
 
-function FailedScreen({ error, onRetry }: { error: string | null; onRetry: () => void }) {
+function FailedScreen({ error, email }: { error: string | null; email: string }) {
   return (
     <div
       style={{
@@ -405,25 +349,18 @@ function FailedScreen({ error, onRetry }: { error: string | null; onRetry: () =>
       >
         Something went wrong.
       </div>
-      <div style={{ fontSize: 13, color: '#888', marginTop: 8, maxWidth: 260 }}>
-        {error ? `Error: ${error}` : 'Please try again. No charge was made.'}
+      <div style={{ fontSize: 13, color: '#888', marginTop: 8, maxWidth: 280, lineHeight: 1.55 }}>
+        Your payment went through, but the page didn&apos;t generate. Email us at{' '}
+        <a href="mailto:founders@powersmy.biz" style={{ color: '#c9748a' }}>
+          founders@powersmy.biz
+        </a>{' '}
+        with your email <strong>{email}</strong> and we&apos;ll fix it within hours.
       </div>
-      <button
-        onClick={onRetry}
-        style={{
-          marginTop: 24,
-          padding: '14px 28px',
-          borderRadius: 99,
-          border: 'none',
-          background: '#1a1a1a',
-          color: '#fff',
-          fontSize: 14,
-          fontWeight: 600,
-          cursor: 'pointer',
-        }}
-      >
-        Try again
-      </button>
+      {error && (
+        <div style={{ fontSize: 11, color: '#aaa', marginTop: 12 }}>
+          Reference: {error}
+        </div>
+      )}
     </div>
   );
 }

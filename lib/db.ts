@@ -47,6 +47,7 @@ function normalize(row: Record<string, unknown>): Order {
     id: row.id as string,
     short_id: row.short_id as string,
     status: row.status as OrderStatus,
+    user_uuid: (row.user_uuid as string | null) ?? null,
 
     from_name: (row.from_name as string) ?? '',
     from_gender: (row.from_gender as Order['from_gender']) ?? 'they',
@@ -82,8 +83,8 @@ function normalize(row: Record<string, unknown>): Order {
       (row.video_timestamps as Record<string, number> | null) ?? null,
     video_treatment: (row.video_treatment as Order['video_treatment']) ?? null,
 
-    razorpay_order_id: (row.razorpay_order_id as string | null) ?? null,
-    razorpay_payment_id: (row.razorpay_payment_id as string | null) ?? null,
+    cashfree_order_id: (row.cashfree_order_id as string | null) ?? null,
+    cashfree_payment_id: (row.cashfree_payment_id as string | null) ?? null,
     amount_paid: (row.amount_paid as number | null) ?? null,
 
     s3_url: (row.s3_url as string | null) ?? null,
@@ -110,13 +111,18 @@ function normalize(row: Record<string, unknown>): Order {
   };
 }
 
-function buildOrder(draft: OrderDraft, shortId: string): Order {
+function buildOrder(
+  draft: OrderDraft,
+  shortId: string,
+  userUuid: string | null,
+): Order {
   const createdAt = new Date();
   const expiresAt = new Date(createdAt.getTime() + ORDER_TTL_MS);
   return {
     id: uuid(),
     short_id: shortId,
     status: 'PENDING',
+    user_uuid: userUuid,
 
     from_name: draft.from_name,
     from_gender: draft.from_gender,
@@ -150,8 +156,8 @@ function buildOrder(draft: OrderDraft, shortId: string): Order {
     video_timestamps: null,
     video_treatment: draft.video_treatment,
 
-    razorpay_order_id: null,
-    razorpay_payment_id: null,
+    cashfree_order_id: null,
+    cashfree_payment_id: null,
     amount_paid: null,
 
     s3_url: null,
@@ -178,7 +184,10 @@ function buildOrder(draft: OrderDraft, shortId: string): Order {
   };
 }
 
-export async function createOrder(draft: OrderDraft): Promise<Order> {
+export async function createOrder(
+  draft: OrderDraft,
+  userUuid: string | null = null,
+): Promise<Order> {
   const sb = getSupabase();
 
   if (!sb) {
@@ -186,7 +195,7 @@ export async function createOrder(draft: OrderDraft): Promise<Order> {
     const s = memStore();
     let short = generateShortId(12);
     while (s.byShortId.has(short)) short = generateShortId(12);
-    const order = buildOrder(draft, short);
+    const order = buildOrder(draft, short, userUuid);
     s.byId.set(order.id, order);
     s.byShortId.set(order.short_id, order.id);
     return order;
@@ -195,7 +204,7 @@ export async function createOrder(draft: OrderDraft): Promise<Order> {
   // Retry the short_id up to a few times in the unlikely event of collision.
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const short = generateShortId(12);
-    const order = buildOrder(draft, short);
+    const order = buildOrder(draft, short, userUuid);
     const { data, error } = await sb
       .from('orders')
       .insert(order)

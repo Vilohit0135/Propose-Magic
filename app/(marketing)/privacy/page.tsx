@@ -19,7 +19,7 @@ export default function PrivacyPage() {
             <li>An optional one-sentence story.</li>
             <li>Your email address (for the delivery link).</li>
             <li>Photos and/or video clips you upload, if any.</li>
-            <li>Payment confirmation from Razorpay (never the card number itself).</li>
+            <li>Payment confirmation from Cashfree (never the card number itself).</li>
             <li>Aggregate usage metrics (scene views, taps) — never tied to a named person.</li>
           </ul>
         </Section>
@@ -37,7 +37,7 @@ export default function PrivacyPage() {
           <p>
             Names and stories go to Claude (our AI writer) to generate the message. Photos go to
             Cloudinary (our image CDN) to render on the page. Emails go to Resend so we can send
-            you the delivery link. Razorpay gets payment details. That&apos;s it.
+            you the delivery link. Cashfree gets payment details. That&apos;s it.
           </p>
         </Section>
 
@@ -55,7 +55,7 @@ export default function PrivacyPage() {
 
         <Section title="Who we share it with">
           <p>
-            Our infrastructure providers only — Claude (Anthropic), Cloudinary, Razorpay, Resend,
+            Our infrastructure providers only — Claude (Anthropic), Cloudinary, Cashfree, Resend,
             Supabase, and Vercel. We never sell, rent, or trade your data to third parties. We
             don&apos;t run targeted ads and we don&apos;t track you across the web.
           </p>

@@ -29,7 +29,7 @@ const CATEGORIES: FaqCategory[] = [
       },
       {
         q: 'Can I use this outside India?',
-        a: 'Pricing is in INR via Razorpay right now. Anyone can receive the link from anywhere in the world — only the sender needs to pay in INR. International payment options are coming.',
+        a: 'Pricing is in INR via Cashfree right now. Anyone can receive the link from anywhere in the world — only the sender needs to pay in INR. International payment options are coming.',
       },
     ],
   },

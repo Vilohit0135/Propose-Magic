@@ -53,7 +53,7 @@ export default function TermsPage() {
 
         <Section title="Payments & refunds">
           <p>
-            Payment is processed by Razorpay. Prices are in INR and inclusive of GST where
+            Payment is processed by Cashfree. Prices are in INR and inclusive of GST where
             applicable. Refunds:
           </p>
           <ul className="mt-2 list-disc space-y-2 pl-5">

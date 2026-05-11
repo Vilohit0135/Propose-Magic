@@ -29,6 +29,10 @@ export type Order = {
   id: string;
   short_id: string;
   status: OrderStatus;
+  // Persistent per-browser identity. localStorage on the client, sent up
+  // when an order is created so we can stitch many orders / payment
+  // attempts to a single user without an auth system.
+  user_uuid: string | null;
 
   from_name: string;
   from_gender: Gender;
@@ -62,8 +66,8 @@ export type Order = {
   video_timestamps: Record<string, number> | null;
   video_treatment: VideoTreatmentId | null;
 
-  razorpay_order_id: string | null;
-  razorpay_payment_id: string | null;
+  cashfree_order_id: string | null;
+  cashfree_payment_id: string | null;
   amount_paid: number | null;
 
   s3_url: string | null;

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { createOrder, setStatus } from '@/lib/db';
-import { generateLetter } from '@/lib/generate-letter';
+import { createOrder } from '@/lib/db';
+import { isConfigured as cashfreeConfigured } from '@/lib/cashfree';
+import { startGeneration } from '@/lib/generation';
 import type { OrderDraft } from '@/lib/order';
 import { FLOWS, PACKAGES, TEMPLATES, TONES } from '@/lib/tokens';
 
@@ -150,35 +151,59 @@ export async function POST(req: Request) {
         : null,
   };
 
-  const order = await createOrder(draft);
+  // Per-browser identity from the client (localStorage, mirrored to a
+  // cookie). Optional — old clients without the helper still work.
+  const userUuid =
+    typeof body.user_uuid === 'string' && body.user_uuid.length > 0
+      ? body.user_uuid.slice(0, 64)
+      : null;
 
-  // No payment gate for now — kick off generation immediately.
-  // Run asynchronously so the client sees GENERATING, then COMPLETED on poll.
-  // generateLetter() calls Claude; it handles its own errors and falls back to
-  // the hardcoded mock if ANTHROPIC_API_KEY is missing or the call fails.
-  await setStatus(order.id, 'GENERATING');
-  void (async () => {
-    try {
-      const message = await generateLetter({
-        fromName: order.from_name,
-        fromGender: order.from_gender,
-        toName: order.to_name,
-        story: order.story,
-        tone: order.tone,
-        subFlow: order.sub_flow,
-        isAnonymous: order.is_anonymous,
-      });
-      await setStatus(order.id, 'COMPLETED', { generated_message: message });
-    } catch {
-      await setStatus(order.id, 'FAILED');
+  const order = await createOrder(draft, userUuid);
+
+  // Production path: order stays PENDING until Cashfree confirms payment.
+  // The /api/cashfree/webhook (or /api/cashfree/verify, whichever wins)
+  // will call startGeneration() once 'success' is recorded.
+  //
+  // Two exceptions skip the payment gate:
+  //   1. Dev fallback — Cashfree env vars aren't set, so there's no way
+  //      to charge; we fall through to immediate generation. Keeps
+  //      `npm run dev` usable on a clean clone without API keys.
+  //   2. Bypass allowlist — internal / comp emails listed in
+  //      BYPASS_PAYMENT_EMAILS get free orders. Server-side check
+  //      only; never trust client.
+  if (!cashfreeConfigured() || isPaymentBypassed(order.email)) {
+    if (isPaymentBypassed(order.email)) {
+      console.log('[order/create] payment bypassed for', order.email);
     }
-  })();
+    await startGeneration(order.id);
+    return NextResponse.json({
+      id: order.id,
+      short_id: order.short_id,
+      status: 'GENERATING',
+    });
+  }
 
   return NextResponse.json({
     id: order.id,
     short_id: order.short_id,
-    status: 'GENERATING',
+    status: 'PENDING',
   });
+}
+
+// Comma-separated lowercase email list from BYPASS_PAYMENT_EMAILS.
+// Parsed once per request rather than module-load so .env edits in dev
+// don't require a server restart.
+function isPaymentBypassed(email: string): boolean {
+  const raw = process.env.BYPASS_PAYMENT_EMAILS || '';
+  if (!raw) return false;
+  const needle = email.toLowerCase().trim();
+  if (!needle) return false;
+  return raw
+    .toLowerCase()
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .includes(needle);
 }
 
 // Accept a narrow RevealContent shape or null. Anything malformed → null,
