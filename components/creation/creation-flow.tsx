@@ -136,20 +136,40 @@ export function CreationFlow({
       // 4. Modal closed. Verify against Cashfree (don't trust the
       //    callback shape). On PAID, the verify route also fires
       //    generation server-side.
-      const verifyRes = await fetch('/api/cashfree/verify', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ order_id: created.id }),
-      });
-      const verify = (await verifyRes.json()) as { status: string };
+      //
+      // Two race conditions to handle:
+      //   a) The webhook may have already arrived and pushed the order
+      //      past PENDING — verify returns 'GENERATING' or 'COMPLETED'.
+      //      Both are success; advance to Step 5.
+      //   b) Cashfree's order-status API can briefly lag behind the
+      //      payment (modal closes ~instantly, their order_status takes
+      //      a sec to flip to PAID). Poll a few times before giving up.
+      const PAID_STATES = new Set(['PAID', 'GENERATING', 'COMPLETED']);
+      let finalStatus: string = 'PENDING';
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        const verifyRes = await fetch('/api/cashfree/verify', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ order_id: created.id }),
+        });
+        const verify = (await verifyRes.json()) as { status: string };
+        finalStatus = verify.status;
+        if (PAID_STATES.has(finalStatus) || finalStatus === 'FAILED') break;
+        // Still PENDING — wait then re-check. Total wait ≤ 5s across 6 attempts.
+        await new Promise((r) => setTimeout(r, 1000));
+      }
 
-      if (verify.status === 'PAID') {
+      if (PAID_STATES.has(finalStatus)) {
         setPaidOrder({ id: created.id, shortId: created.short_id });
         setStep(5);
-      } else if (verify.status === 'FAILED') {
+      } else if (finalStatus === 'FAILED') {
         setPayError('Payment failed. Please try again.');
       } else {
-        // Modal closed without paying (PENDING). Silent — user can retry.
+        // Still PENDING after 5s — most commonly the user closed the
+        // modal without paying. Stay silent; the Pay button is back to
+        // its default state and they can retry. The order is still
+        // PENDING in our DB, so /api/cashfree/order will accept a
+        // second attempt and create a fresh payment session.
         setPayError(null);
       }
     } catch (e) {
