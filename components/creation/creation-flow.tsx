@@ -60,6 +60,11 @@ export function CreationFlow({
   // and just polls — it no longer creates the order itself.
   const [paidOrder, setPaidOrder] = useState<{ id: string; shortId: string } | null>(null);
   const [paying, setPaying] = useState(false);
+  // Sub-state of the pay flow so the button can tell the user what
+  // we're actually doing — opening Cashfree vs waiting for confirmation.
+  const [payPhase, setPayPhase] = useState<'idle' | 'opening' | 'verifying'>(
+    'idle',
+  );
   const [payError, setPayError] = useState<string | null>(null);
 
   const next = () => setStep((s) => Math.min(s + 1, 5));
@@ -77,6 +82,7 @@ export function CreationFlow({
   const handlePay = async () => {
     if (paying) return;
     setPaying(true);
+    setPayPhase('opening');
     setPayError(null);
     try {
       const userUuid = getOrCreateUserUuid();
@@ -142,11 +148,16 @@ export function CreationFlow({
       //      past PENDING — verify returns 'GENERATING' or 'COMPLETED'.
       //      Both are success; advance to Step 5.
       //   b) Cashfree's order-status API can briefly lag behind the
-      //      payment (modal closes ~instantly, their order_status takes
-      //      a sec to flip to PAID). Poll a few times before giving up.
+      //      payment. Poll with backoff until we hit a terminal state
+      //      or 60s elapses (covers slow bank confirmations on
+      //      netbanking + UPI intent flows).
+      setPayPhase('verifying');
       const PAID_STATES = new Set(['PAID', 'GENERATING', 'COMPLETED']);
+      const POLL_TIMEOUT_MS = 60_000;
+      const startedAt = Date.now();
       let finalStatus: string = 'PENDING';
-      for (let attempt = 0; attempt < 6; attempt += 1) {
+      let attempt = 0;
+      while (Date.now() - startedAt < POLL_TIMEOUT_MS) {
         const verifyRes = await fetch('/api/cashfree/verify', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -155,8 +166,11 @@ export function CreationFlow({
         const verify = (await verifyRes.json()) as { status: string };
         finalStatus = verify.status;
         if (PAID_STATES.has(finalStatus) || finalStatus === 'FAILED') break;
-        // Still PENDING — wait then re-check. Total wait ≤ 5s across 6 attempts.
-        await new Promise((r) => setTimeout(r, 1000));
+        attempt += 1;
+        // Backoff to ease load on Cashfree's API: 1s, 1s, 1s, 2s, 2s, 3s, 3s, 5s, 5s, 5s...
+        const delayMs =
+          attempt <= 3 ? 1000 : attempt <= 5 ? 2000 : attempt <= 7 ? 3000 : 5000;
+        await new Promise((r) => setTimeout(r, delayMs));
       }
 
       if (PAID_STATES.has(finalStatus)) {
@@ -165,17 +179,20 @@ export function CreationFlow({
       } else if (finalStatus === 'FAILED') {
         setPayError('Payment failed. Please try again.');
       } else {
-        // Still PENDING after 5s — most commonly the user closed the
-        // modal without paying. Stay silent; the Pay button is back to
-        // its default state and they can retry. The order is still
-        // PENDING in our DB, so /api/cashfree/order will accept a
-        // second attempt and create a fresh payment session.
-        setPayError(null);
+        // Timed out at PENDING after 60s. Most likely the user closed
+        // the modal without paying — Cashfree leaves the order ACTIVE
+        // until its TTL expires (~30 min). If they DID pay, the
+        // webhook will still fire and generate the page; tell them to
+        // check their email so they don't think it failed.
+        setPayError(
+          "We couldn't confirm your payment in time. If you completed it, your page link will arrive in your email shortly. If not, please try again.",
+        );
       }
     } catch (e) {
       setPayError(e instanceof Error ? e.message : 'unknown_error');
     } finally {
       setPaying(false);
+      setPayPhase('idle');
     }
   };
 
@@ -350,7 +367,9 @@ export function CreationFlow({
               >
                 {step === 4
                   ? paying
-                    ? 'Opening checkout…'
+                    ? payPhase === 'verifying'
+                      ? 'Verifying payment…'
+                      : 'Opening checkout…'
                     : `Pay ₹${PACKAGES[state.package]?.price ?? ''} →`
                   : 'Continue →'}
               </button>
