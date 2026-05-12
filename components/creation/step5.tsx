@@ -189,23 +189,52 @@ function DeliveredScreen({
   onOpen: () => void;
 }) {
   const [origin, setOrigin] = useState('');
+  // Shortened share URL (is.gd / TinyURL via /api/shorten). Once we
+  // ruled out the music-playback bug as our SSR hydration issue
+  // (background-music.tsx), the shortener was safe to re-enable so
+  // receivers see a short branded link in WhatsApp instead of the
+  // raw proposemagic.in URL. If the shorten call fails, we fall back
+  // to the direct URL — the share button stays usable either way.
+  const [shortenedUrl, setShortenedUrl] = useState<string | null>(null);
+  const [shortening, setShortening] = useState(true);
 
   useEffect(() => {
     setOrigin(window.location.origin);
   }, []);
 
-  // Direct same-origin link — no third-party shortener. We tried
-  // TinyURL (now adds an ad interstitial that breaks YouTube embeds) and
-  // is.gd (flagged the destination as suspicious for some receivers).
-  // Both costs (slightly longer URL, domain visible in WhatsApp preview)
-  // are smaller than the cost of unreliable music playback.
-  //
-  // origin is empty on first render (set in useEffect above), so we
-  // render an empty string until it's available. NEVER hardcode a
-  // domain fallback — the prod domain has changed in the past
-  // (proposemagic.in -> magic.supercx.co) and a stale fallback string
-  // shipped a wrong URL into share text.
-  const fullUrl = origin ? `${origin}/p/${shortId}` : '';
+  useEffect(() => {
+    if (!shortId || typeof window === 'undefined') return;
+    const full = `${window.location.origin}/p/${shortId}`;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/shorten', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ url: full }),
+        });
+        if (!res.ok) throw new Error(`status_${res.status}`);
+        const data = (await res.json()) as { short?: string };
+        if (!cancelled && data?.short) setShortenedUrl(data.short);
+      } catch {
+        // Shortener down — just use the direct URL. Share button
+        // still works, link still resolves. Receiver sees the
+        // proposemagic.in domain, which is acceptable.
+        if (!cancelled) setShortenedUrl(full);
+      } finally {
+        if (!cancelled) setShortening(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [shortId]);
+
+  // Prefer the shortened URL once it's back; otherwise fall through to
+  // the direct same-origin URL. NEVER hardcode a domain fallback — the
+  // prod domain can change (e.g. proposemagic.in → magic.supercx.co).
+  const fullUrl =
+    shortenedUrl ?? (origin ? `${origin}/p/${shortId}` : '');
   const displayUrl = fullUrl.replace(/^https?:\/\//, '');
   const shareText = `I made something for you ♥ ${fullUrl}`;
   const whatsapp = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
@@ -252,7 +281,7 @@ function DeliveredScreen({
           minWidth: 220,
         }}
       >
-        {displayUrl}
+        {shortening ? 'creating your short link…' : displayUrl}
       </div>
       <button
         onClick={onOpen}
@@ -271,24 +300,29 @@ function DeliveredScreen({
         Open their page →
       </button>
       <a
-        href={whatsapp}
+        href={shortening ? undefined : whatsapp}
         target="_blank"
         rel="noreferrer"
+        aria-disabled={shortening}
+        onClick={(e) => {
+          if (shortening) e.preventDefault();
+        }}
         style={{
           marginTop: 10,
           padding: '12px 24px',
           borderRadius: 99,
           border: '1px solid #25D366',
-          background: '#25D366',
+          background: shortening ? '#b7e6c8' : '#25D366',
           color: '#fff',
           fontSize: 13,
           fontWeight: 600,
-          cursor: 'pointer',
+          cursor: shortening ? 'wait' : 'pointer',
           textDecoration: 'none',
-          transition: 'background 0.2s',
+          opacity: shortening ? 0.8 : 1,
+          transition: 'background 0.2s, opacity 0.2s',
         }}
       >
-        Share on WhatsApp
+        {shortening ? 'Preparing link…' : 'Share on WhatsApp'}
       </a>
     </div>
   );
