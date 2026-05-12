@@ -194,12 +194,18 @@ function DeliveredScreen({
     setOrigin(window.location.origin);
   }, []);
 
-  // Direct proposemagic.in link — no third-party shortener. We tried
+  // Direct same-origin link — no third-party shortener. We tried
   // TinyURL (now adds an ad interstitial that breaks YouTube embeds) and
   // is.gd (flagged the destination as suspicious for some receivers).
   // Both costs (slightly longer URL, domain visible in WhatsApp preview)
   // are smaller than the cost of unreliable music playback.
-  const fullUrl = `${origin || 'https://proposemagic.in'}/p/${shortId}`;
+  //
+  // origin is empty on first render (set in useEffect above), so we
+  // render an empty string until it's available. NEVER hardcode a
+  // domain fallback — the prod domain has changed in the past
+  // (proposemagic.in -> magic.supercx.co) and a stale fallback string
+  // shipped a wrong URL into share text.
+  const fullUrl = origin ? `${origin}/p/${shortId}` : '';
   const displayUrl = fullUrl.replace(/^https?:\/\//, '');
   const shareText = `I made something for you ♥ ${fullUrl}`;
   const whatsapp = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
