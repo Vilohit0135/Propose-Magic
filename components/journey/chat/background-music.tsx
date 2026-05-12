@@ -82,11 +82,32 @@ export function BackgroundMusic({
   useEffect(() => {
     if (!videoId || typeof window === 'undefined') return;
     mountedRef.current = true;
+    console.log('[BackgroundMusic] mounting, videoId=', videoId);
 
     const createPlayer = () => {
-      if (!mountedRef.current) return;
+      if (!mountedRef.current) {
+        console.warn('[BackgroundMusic] createPlayer skipped — unmounted');
+        return;
+      }
       const YT = window.YT;
-      if (!YT) return;
+      if (!YT || !YT.Player) {
+        console.warn('[BackgroundMusic] createPlayer skipped — YT.Player not ready');
+        return;
+      }
+      // Bail if the container is gone (rare; race against StrictMode double-effect).
+      if (!document.getElementById(containerId.current)) {
+        console.warn(
+          '[BackgroundMusic] createPlayer skipped — container element not in DOM',
+        );
+        return;
+      }
+      // Don't double-construct if a previous createPlayer call already
+      // succeeded for this mount.
+      if (playerRef.current) {
+        console.log('[BackgroundMusic] player already exists; skip recreate');
+        return;
+      }
+      console.log('[BackgroundMusic] constructing YT.Player');
       try {
         playerRef.current = new YT.Player(containerId.current, {
           videoId,
@@ -180,14 +201,33 @@ export function BackgroundMusic({
             },
           },
         });
-      } catch {
-        // Init error — chat still works without music.
+        console.log('[BackgroundMusic] YT.Player constructor returned ok');
+      } catch (err) {
+        // Surface the error instead of silently swallowing — silent
+        // failures here are how reload-broken-music slipped through:
+        // no console error meant no diagnosis was possible.
+        console.error('[BackgroundMusic] YT.Player constructor threw:', err);
       }
     };
 
-    if (!window.YT?.Player) {
+    // Robust YT.Player bootstrap. Three races to handle:
+    //   1. Cold load: API script not yet loaded → register callback,
+    //      add script, wait for onYouTubeIframeAPIReady.
+    //   2. Reload (script in disk cache): YT.Player may already exist
+    //      by the time React mounts → call createPlayer directly.
+    //   3. Reload race: iframe_api fires onYouTubeIframeAPIReady BEFORE
+    //      our useEffect registers the callback → callback never fires
+    //      and YT.Player check is briefly inconsistent. Catch this with
+    //      a polling fallback that retries createPlayer every 100ms
+    //      for up to 5s.
+    if (window.YT?.Player) {
+      console.log('[BackgroundMusic] YT.Player already present — direct create');
+      createPlayer();
+    } else {
+      console.log('[BackgroundMusic] YT.Player not ready — registering callback');
       const prevReady = window.onYouTubeIframeAPIReady;
       window.onYouTubeIframeAPIReady = () => {
+        console.log('[BackgroundMusic] onYouTubeIframeAPIReady fired');
         prevReady?.();
         createPlayer();
       };
@@ -198,9 +238,27 @@ export function BackgroundMusic({
         s.setAttribute('data-yt-iframe-api', '');
         document.head.appendChild(s);
       }
-    } else {
-      createPlayer();
     }
+
+    // Polling safety net — runs alongside the callback path. If neither
+    // fires for any reason (cached script that never re-emits the ready
+    // event, browser bfcache quirks, etc.), this catches it.
+    const pollStart = Date.now();
+    const pollId = window.setInterval(() => {
+      if (playerRef.current) {
+        window.clearInterval(pollId);
+        return;
+      }
+      if (Date.now() - pollStart > 5000) {
+        console.warn('[BackgroundMusic] poll giving up — player never created');
+        window.clearInterval(pollId);
+        return;
+      }
+      if (window.YT?.Player) {
+        console.log('[BackgroundMusic] poll detected YT.Player — retrying create');
+        createPlayer();
+      }
+    }, 100);
 
     // Gesture-driven unmute — covers the browser autoplay policy. We
     // respect userMutedRef so this doesn't keep flipping audio back on
@@ -242,6 +300,7 @@ export function BackgroundMusic({
 
     return () => {
       mountedRef.current = false;
+      window.clearInterval(pollId);
       events.forEach(([name, opts]) =>
         document.removeEventListener(name, onGesture, opts),
       );
