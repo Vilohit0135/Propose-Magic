@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import type { TemplateDef } from '@/lib/types';
 import { withAlpha } from './bubbles';
 
@@ -62,7 +62,20 @@ export function BackgroundMusic({
   startSeconds: number | null;
   t: TemplateDef;
 }) {
-  const containerId = useRef(`bgm-${Math.random().toString(36).slice(2, 9)}`);
+  // Stable container id that matches between SSR and client hydration.
+  //
+  // The previous implementation used `Math.random()` inside useRef, which
+  // produced DIFFERENT ids on the server and the client. The server-rendered
+  // HTML had `id="bgm-X"` in the DOM but the client's JS searched for
+  // `id="bgm-Y"` → document.getElementById always returned null on reload /
+  // paste-link / WhatsApp-tap (any path that involves SSR). Music only worked
+  // when arriving via in-app `router.push` because that path skips SSR.
+  //
+  // `useId()` is React's official tool for this exact case: it produces an
+  // identifier that's identical between the server render and the client
+  // hydration, so DOM lookups consistently find the element.
+  const reactId = useId();
+  const containerId = `bgm-${reactId.replace(/:/g, '-')}`;
   const playerRef = useRef<YTPlayer | null>(null);
   const mountedRef = useRef(false);
   // `muted` reflects the *player's* actual mute state. `userMutedRef`
@@ -95,7 +108,7 @@ export function BackgroundMusic({
         return;
       }
       // Bail if the container is gone (rare; race against StrictMode double-effect).
-      if (!document.getElementById(containerId.current)) {
+      if (!document.getElementById(containerId)) {
         console.warn(
           '[BackgroundMusic] createPlayer skipped — container element not in DOM',
         );
@@ -109,7 +122,7 @@ export function BackgroundMusic({
       }
       console.log('[BackgroundMusic] constructing YT.Player');
       try {
-        playerRef.current = new YT.Player(containerId.current, {
+        playerRef.current = new YT.Player(containerId, {
           videoId,
           height: 1,
           width: 1,
@@ -366,7 +379,7 @@ export function BackgroundMusic({
           overflow: 'hidden',
         }}
       >
-        <div id={containerId.current} />
+        <div id={containerId} />
       </div>
       {/* Persistent mute/unmute pill. Disabled while the player is
           loading so taps during cold-start don't no-op silently — she
