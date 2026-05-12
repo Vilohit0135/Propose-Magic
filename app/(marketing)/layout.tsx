@@ -8,15 +8,17 @@ export default function MarketingLayout({
 }) {
   return (
     // NOTE: no `overflow-hidden` on this outer div — that's what
-    // breaks `position: sticky` on the nav. The ambient backdrop below
-    // is bounded by `inset-x-0` so it can't cause horizontal scroll
-    // anyway, and pages that need their own clipping (showcase,
-    // marquee, etc.) handle it inside their own sections.
+    // breaks `position: sticky` on the nav.
+    //
+    // The previous version had an ambient pink-radial backdrop at the
+    // top (h-640px), which gave every marketing page a subtle pink
+    // tint behind the navbar. That tint stopped where pages started
+    // their own opaque background, producing a visible horizontal seam
+    // right under the floating nav pill. Removed so the navbar area
+    // and the page below share one continuous color. The home Hero
+    // section still applies its own pink radial inside its own
+    // boundary, so the warm welcome tint is preserved where it counts.
     <div className="relative flex min-h-dvh flex-col bg-cream text-ink">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[640px] bg-[radial-gradient(ellipse_at_top,rgba(201,116,138,0.18),transparent_70%)]"
-      />
       <Nav />
       <main className="relative flex-1">{children}</main>
       <Footer />

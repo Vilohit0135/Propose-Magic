@@ -215,7 +215,11 @@ export function CreationFlow({
       style={{
         width: '100%',
         minHeight: '100dvh',
-        background: '#fafaf7',
+        // Match the marketing layout's bg-cream (#f2f0eb) so the nav
+        // and the page form a single visual surface — without this the
+        // /create page's old #fafaf7 was lighter than the layout cream
+        // and produced a visible seam right under the floating nav.
+        background: '#f2f0eb',
         color: '#1a1a1a',
         display: 'flex',
         flexDirection: 'column',
@@ -228,7 +232,7 @@ export function CreationFlow({
           position: 'sticky',
           top: 0,
           zIndex: 10,
-          background: 'rgba(250, 250, 247, 0.92)',
+          background: 'rgba(242, 240, 235, 0.92)',
           backdropFilter: 'blur(8px)',
           WebkitBackdropFilter: 'blur(8px)',
           borderBottom: '1px solid rgba(0,0,0,0.04)',
@@ -319,8 +323,13 @@ export function CreationFlow({
       {step < 5 && (
         <div
           style={{
-            borderTop: '1px solid #eee',
-            background: '#fff',
+            borderTop: '1px solid rgba(0,0,0,0.04)',
+            // Match the page cream + a soft blur, so the sticky bar
+            // visually belongs to the page instead of looking like a
+            // separate white slab pasted on top.
+            background: 'rgba(242, 240, 235, 0.92)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
             position: 'sticky',
             bottom: 0,
             zIndex: 5,

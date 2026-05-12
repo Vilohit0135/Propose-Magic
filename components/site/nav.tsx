@@ -29,7 +29,13 @@ export function Nav() {
     href === '/' ? pathname === '/' : pathname?.startsWith(href);
 
   return (
-    <header className="sticky top-3 z-40 px-2 md:top-4 md:px-3">
+    // The header itself is transparent — no visible "bar" or backdrop
+    // section above the pill. Whatever's on the page underneath shows
+    // through, but softened by `backdrop-blur` so dark content doesn't
+    // create a harsh stripe and light content doesn't compete with the
+    // pill. This gives the floating pill the look of being part of the
+    // page rather than overlaid on a separate band.
+    <header className="sticky top-0 z-40 px-2 pt-3 pb-1 backdrop-blur-md md:px-3 md:pt-4 md:pb-2">
       <div
         className={[
           'relative mx-auto flex max-w-7xl items-center justify-between overflow-hidden',

@@ -94,8 +94,16 @@ function GeneratingScreen({ progress }: { progress: number }) {
   return (
     <div
       style={{
-        position: 'absolute',
+        // Fixed (not absolute) so the dark gradient covers the entire
+        // viewport, including the area behind the marketing navbar.
+        // The navbar (z-40) still floats on top with backdrop-blur, so
+        // its surrounding area now reads as a softly-blurred dark
+        // instead of the layout's cream — eliminating the visible seam
+        // between the navbar zone and the generating screen.
+        // z-index sits below the navbar so the pill stays interactive.
+        position: 'fixed',
         inset: 0,
+        zIndex: 30,
         background: 'linear-gradient(180deg, #1a0a12 0%, #2a0e1c 100%)',
         color: '#fbeae1',
         display: 'flex',
@@ -243,7 +251,7 @@ function DeliveredScreen({
       style={{
         position: 'absolute',
         inset: 0,
-        background: '#fafaf7',
+        background: '#f2f0eb',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -334,7 +342,7 @@ function FailedScreen({ error, email }: { error: string | null; email: string })
       style={{
         position: 'absolute',
         inset: 0,
-        background: '#fafaf7',
+        background: '#f2f0eb',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
