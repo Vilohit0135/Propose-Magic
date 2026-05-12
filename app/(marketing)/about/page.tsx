@@ -24,7 +24,7 @@ export default function AboutPage() {
           We thought that was a solvable problem. Words are hard. Design is expensive. Coding
           a mini-website for one person is absurd. But a page — cinematic, paced, written in
           your voice, styled in a mood that matches yours, delivered on a short URL you can
-          send on WhatsApp — that&apos;s doable. That&apos;s what ProposeMagic, Powered by SuperCX Technologies PVT. LTD., is.
+          send on WhatsApp — that&apos;s doable. That&apos;s what ProposeMagic, Powered by SuperCX Technologies Private Limited, is.
         </p>
 
         <p className="mt-5">
@@ -40,9 +40,9 @@ export default function AboutPage() {
         </p>
 
         <p className="mt-10 text-ink">
-          — The ProposeMagic team, Powered by SuperCX Technologies PVT. LTD.
+          — The ProposeMagic team, Powered by SuperCX Technologies Private Limited
           <br />
-          <span className="text-sm text-ink-soft">SuperCX Technologies · Bengaluru</span>
+          <span className="text-sm text-ink-soft">SuperCX Technologies · Bangalore</span>
         </p>
       </div>
 

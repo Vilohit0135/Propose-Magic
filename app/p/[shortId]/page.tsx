@@ -26,9 +26,18 @@ export async function generateMetadata(
   // Fallback copy before any per-order personalization — used when the
   // DB lookup fails, the link is expired, or the shortId belongs to the
   // examples gallery.
+  //
+  // referrer: 'no-referrer-when-downgrade' is set explicitly on the
+  // receiver page (and only here) so the YouTube iframe receives the
+  // full proposemagic.in Referer when the page is loaded after a
+  // cross-origin redirect (e.g. via TinyURL). Without this, Chrome's
+  // default 'strict-origin-when-cross-origin' downgrades the Referer to
+  // origin-only on the cross-origin hop, which makes some videos
+  // refuse to embed (silent player, no autoplay).
   const fallback: Metadata = {
     title: 'A little something for you',
     description: 'Tap to open it when you have a quiet moment ♥',
+    referrer: 'no-referrer-when-downgrade',
     openGraph: {
       title: 'A little something for you',
       description: 'Tap to open it when you have a quiet moment ♥',
@@ -63,6 +72,7 @@ export async function generateMetadata(
     return {
       title: title as string,
       description,
+      referrer: 'no-referrer-when-downgrade',
       openGraph: {
         title: title as string,
         description,

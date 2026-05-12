@@ -159,9 +159,24 @@ export function BackgroundMusic({
                 }
               }
             },
-            onError: () => {
-              // Embed disabled / region-blocked / video removed. Nothing
-              // we can do from here; the rest of the page still works.
+            onError: ({ data }) => {
+              // Surface the YouTube error code so we can tell users why
+              // their song isn't playing. Codes:
+              //   2   = invalid videoId (malformed / 11-char check failed)
+              //   5   = HTML5 player error (rare)
+              //   100 = video not found / private / removed
+              //   101 = embedding disabled by the video's owner
+              //   150 = embedding disabled (variant of 101)
+              console.warn(
+                `[BackgroundMusic] YouTube player error ${data} for videoId=${videoId}. ` +
+                  (data === 101 || data === 150
+                    ? 'This video has embedding disabled — pick a different song.'
+                    : data === 100
+                      ? 'This video was removed or made private.'
+                      : data === 2
+                        ? 'Malformed videoId.'
+                        : 'Unknown player error.'),
+              );
             },
           },
         });

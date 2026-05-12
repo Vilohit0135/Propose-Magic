@@ -57,7 +57,7 @@ export function Footer() {
               Propose<span className="text-rose">Magic</span>
             </Link>
             <div className="mt-1 text-[11px] font-medium tracking-wide text-rose-deep">
-              Powered by SuperCX Technologies PVT. LTD.
+              Powered by SuperCX Technologies Private Limited
             </div>
             <p className="mt-4 max-w-sm text-sm leading-relaxed text-ink-muted">
               AI-powered cinematic pages for proposals, birthdays,
@@ -114,28 +114,16 @@ export function Footer() {
           </div>
         </div>
 
-        {/* Bottom strip — copyright + locale + credit */}
-        <div className="mt-14 flex flex-col items-start gap-4 border-t border-rose/15 py-6 text-xs text-ink-soft md:flex-row md:items-center md:justify-between">
+        {/* Bottom strip — copyright + locale */}
+        <div className="mt-14 flex flex-col items-start gap-4 border-t border-rose/15 py-6 text-xs text-ink-soft md:flex-row md:items-center">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span>© 2026 ProposeMagic, Powered by SuperCX Technologies PVT. LTD.</span>
+            <span>© 2026 ProposeMagic, Powered by SuperCX Technologies Private Limited</span>
             <span className="text-rose/60">·</span>
             <span>proposemagic.in</span>
             <span className="text-rose/60">·</span>
             <span className="inline-flex items-center gap-1">
               Made with <span className="text-rose">♥</span> in India
             </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span>Crafted by</span>
-            <a
-              href="https://www.supercx.co/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-full bg-rose-deep/10 px-3 py-1 font-semibold text-rose-deep transition-colors hover:bg-rose-deep/20"
-            >
-              <span>SuperCX</span>
-              {/* <span className="text-[10px]">↗</span> */}
-            </a>
           </div>
         </div>
       </div>

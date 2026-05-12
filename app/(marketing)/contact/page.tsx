@@ -46,11 +46,9 @@ export default function ContactPage() {
             Office
           </div>
           <div className="mt-2 text-sm text-ink">
-            SuperCX Technologies Pvt Ltd
+            SuperCX Technologies Private Limited
             <br />
-            Bengaluru, Karnataka 560001
-            <br />
-            India
+            Bangalore
           </div>
         </div>
         <div className="rounded-2xl border border-black/10 bg-cream-dark/30 p-6">
