@@ -4,19 +4,20 @@ import { NextResponse } from 'next/server';
 // shorteners chained as a fallback pair. Done server-side so browser
 // CORS restrictions don't block the calls.
 //
-// Chain: is.gd (primary) → tinyurl.com (fallback) → original URL.
+// Chain: tinyurl.com (primary) → is.gd (fallback) → original URL.
 //
-// Why is.gd first:
-//   - TinyURL changed their policy: free shortened URLs now route
-//     through an ad-supported interstitial page (gpt.js, pubads,
-//     bootstrap, etc.) before redirecting. That breaks the receiver
-//     experience — slow load, ads in the way, and the multi-hop nav
-//     also broke YouTube embed playback for some videos.
-//   - is.gd does a clean 301 redirect with no interstitial. It used
-//     to flag *.vercel.app destinations as "phishing suspected", but
-//     that doesn't apply here since we shorten proposemagic.in URLs.
-//   - TinyURL kept as a fallback only in case is.gd is rate-limited
-//     or down.
+// Why TinyURL first:
+//   - is.gd has been intermittently unreachable from some networks
+//     (DNS / ISP block / outage), returning ERR_CONNECTION_TIMED_OUT
+//     for end users. TinyURL's domain is more reliably resolvable
+//     globally.
+//   - TinyURL's free links now show a brief ad interstitial before
+//     redirecting — a known cost we accept for reliability. Music
+//     playback is no longer affected (the prior "TinyURL breaks
+//     music" symptom traced to an SSR hydration bug in
+//     BackgroundMusic, fixed separately).
+//   - is.gd kept as a fallback for the case where TinyURL's API is
+//     rate-limited or down.
 //   - Both shorteners create PERMANENT redirects. The 48h expiry is
 //     enforced by the receiver page itself (status → EXPIRED), not the
 //     short link — so functionally the link goes dead after 48h by
@@ -45,19 +46,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'invalid_url' }, { status: 400 });
   }
 
-  // Try is.gd first — clean 301 redirect, no ad interstitial.
-  const isgd = await tryIsGd(url);
-  if (isgd) {
-    return NextResponse.json<ShortResult>({
-      short: isgd,
-      original: url,
-      provider: 'isgd',
-    });
-  }
-
-  // Fall back to TinyURL if is.gd is down / rate-limited. Note: TinyURL
-  // free links now route through an ad page, so receivers will see an
-  // interstitial — degraded but still functional.
+  // Try TinyURL first — most reliably reachable; cost is the brief
+  // ad-interstitial receivers see before reaching the proposal.
   const tiny = await tryTinyUrl(url);
   if (tiny) {
     return NextResponse.json<ShortResult>({
@@ -67,9 +57,21 @@ export async function POST(req: Request) {
     });
   }
 
+  // Fall back to is.gd if TinyURL is down / rate-limited. is.gd does a
+  // cleaner redirect (no ads) but has had network reachability issues
+  // from some ISPs in the past, so it's only the safety net.
+  const isgd = await tryIsGd(url);
+  if (isgd) {
+    return NextResponse.json<ShortResult>({
+      short: isgd,
+      original: url,
+      provider: 'isgd',
+    });
+  }
+
   // Neither worked — return the original so the UI still has something
   // to show / share.
-  console.warn('[shorten] both is.gd and tinyurl failed, returning original');
+  console.warn('[shorten] both tinyurl and is.gd failed, returning original');
   return NextResponse.json<ShortResult>({
     short: url,
     original: url,
