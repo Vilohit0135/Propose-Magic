@@ -11,6 +11,9 @@ export default function PrivacyPage() {
         The short version: we keep very little, and we don&apos;t sell it.
       </h1>
       <p className="mt-4 text-sm text-ink-soft">Last updated: April 21, 2026</p>
+      <p className="mt-1 text-xs font-medium tracking-wide text-rose-deep">
+        ProposeMagic, Powered by SuperCX Technologies PVT. LTD.
+      </p>
 
       <div className="mt-10 space-y-8 text-[15px] leading-relaxed text-ink-muted">
         <Section title="What we collect">

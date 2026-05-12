@@ -15,7 +15,7 @@ export default function TermsPage() {
       <div className="mt-10 space-y-8 text-[15px] leading-relaxed text-ink-muted">
         <Section title="Who this is with">
           <p>
-            ProposeMagic is operated by SuperCX Technologies Private Limited, based in Bengaluru,
+            ProposeMagic, Powered by SuperCX Technologies PVT. LTD., is operated by SuperCX Technologies Private Limited, based in Bengaluru,
             India. When we say &quot;we&quot;, that&apos;s who we mean. When we say &quot;you&quot;,
             we mean the person using the service.
           </p>
@@ -65,7 +65,7 @@ export default function TermsPage() {
 
         <Section title="Takedowns & abuse">
           <p>
-            If content on a ProposeMagic page targets or harms the person it&apos;s addressed to,
+            If content on a ProposeMagic, Powered by SuperCX Technologies PVT. LTD., page targets or harms the person it&apos;s addressed to,
             they can email{' '}
             <a href="mailto:abuse@proposemagic.in" className="underline">
               abuse@proposemagic.in
