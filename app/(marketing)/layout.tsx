@@ -1,5 +1,6 @@
 import { Nav } from '@/components/site/nav';
 import { Footer } from '@/components/site/footer';
+import { MetaPixel } from '@/components/site/meta-pixel';
 
 export default function MarketingLayout({
   children,
@@ -19,6 +20,11 @@ export default function MarketingLayout({
     // section still applies its own pink radial inside its own
     // boundary, so the warm welcome tint is preserved where it counts.
     <div className="relative flex min-h-dvh flex-col bg-cream text-ink">
+      {/* Meta Pixel scoped to the marketing layout — covers the whole
+          funnel (landing, pricing, /create, checkout) but NOT the
+          private /p/[shortId] receiver pages, which live outside this
+          layout and shouldn't be ad-tracked. */}
+      <MetaPixel />
       <Nav />
       <main className="relative flex-1">{children}</main>
       <Footer />
