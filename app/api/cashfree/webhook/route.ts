@@ -7,6 +7,7 @@ import {
 } from '@/lib/cashfree';
 import { startGeneration } from '@/lib/generation';
 import { recordTransaction } from '@/lib/transactions';
+import { sendCapiEvent } from '@/lib/meta-capi';
 
 // POST /api/cashfree/webhook
 //
@@ -83,6 +84,18 @@ export async function POST(req: Request) {
       amount_paid: Math.round(amountRupees * 100),
     });
     await startGeneration(order.id);
+
+    // Meta CAPI: server-side Purchase. This is the unblockable copy —
+    // it fires from Cashfree's webhook with zero browser involvement,
+    // so it lands even when the buyer's browser blocked the pixel.
+    // Shares event_id `purchase-<orderId>` with the browser-fired
+    // Purchase (creation-flow.tsx), so Meta dedupes them into one.
+    void sendCapiEvent({
+      eventName: 'Purchase',
+      eventId: `purchase-${order.id}`,
+      userData: { email: order.email, phone: order.from_phone },
+      customData: { value: amountRupees, currency: 'INR' },
+    });
   }
 
   return NextResponse.json({ ok: true });

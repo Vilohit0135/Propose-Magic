@@ -3,43 +3,50 @@
 import Script from 'next/script';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef } from 'react';
+import { trackMeta } from '@/lib/meta-client';
 
-// Meta (Facebook) Pixel. Activates only when NEXT_PUBLIC_META_PIXEL_ID
-// is set — with the env var empty this component renders nothing, so
-// local dev and un-configured environments stay tracking-free.
+// Meta (Facebook) Pixel + Conversions API bootstrap. Activates only
+// when NEXT_PUBLIC_META_PIXEL_ID is set — empty env → renders nothing.
 //
-// The base snippet fires one PageView on hard load. Next.js does
-// client-side navigation for in-app links, which does NOT re-run the
-// snippet — so we fire an extra PageView on each pathname change,
-// skipping the very first render to avoid double-counting the landing.
-
-declare global {
-  interface Window {
-    fbq?: (...args: unknown[]) => void;
-  }
-}
+// The inline snippet only does `fbq('init')`. PageView is NOT fired by
+// the snippet; instead trackMeta() fires it, which sends it to both
+// the browser pixel AND the Conversions API with one shared event_id
+// (so the two copies deduplicate). PageView fires:
+//   - once on first load — from the Script onReady callback, which is
+//     guaranteed to run after the snippet has defined window.fbq
+//   - again on every client-side route change — from the effect below
+//     (its first run is skipped so the initial view isn't double-sent)
 
 const PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID;
 
 export function MetaPixel() {
   const pathname = usePathname();
-  const firstRender = useRef(true);
+  const initialDone = useRef(false);
 
   useEffect(() => {
     if (!PIXEL_ID) return;
-    if (firstRender.current) {
-      // The inline base snippet already fired the initial PageView.
-      firstRender.current = false;
+    if (!initialDone.current) {
+      // First effect run = initial mount. The initial PageView is
+      // handled by the Script onReady callback instead.
+      initialDone.current = true;
       return;
     }
-    window.fbq?.('track', 'PageView');
+    trackMeta('PageView');
   }, [pathname]);
 
   if (!PIXEL_ID) return null;
 
   return (
     <>
-      <Script id="meta-pixel" strategy="afterInteractive">
+      <Script
+        id="meta-pixel"
+        strategy="afterInteractive"
+        onReady={() => {
+          // fbq exists by now — fire the first PageView through
+          // trackMeta so it reaches CAPI too, with an event_id.
+          trackMeta('PageView');
+        }}
+      >
         {`
           !function(f,b,e,v,n,t,s)
           {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
@@ -50,7 +57,6 @@ export function MetaPixel() {
           s.parentNode.insertBefore(t,s)}(window, document,'script',
           'https://connect.facebook.net/en_US/fbevents.js');
           fbq('init', '${PIXEL_ID}');
-          fbq('track', 'PageView');
         `}
       </Script>
       <noscript>

@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import type { OrderState } from '@/lib/types';
 import { PACKAGES } from '@/lib/tokens';
 import { getOrCreateUserUuid } from '@/lib/user-uuid';
+import { trackMeta } from '@/lib/meta-client';
 import { Step1 } from './step1';
 import { Step2 } from './step2';
 import { Step3, Step4 } from './step3-4';
@@ -115,6 +116,16 @@ export function CreationFlow({
         return;
       }
 
+      // Meta: InitiateCheckout. event_id is tied to the order so the
+      // pixel + CAPI copies of this event deduplicate.
+      const price = PACKAGES[state.package]?.price ?? 0;
+      trackMeta(
+        'InitiateCheckout',
+        { value: price, currency: 'INR', content_name: state.package },
+        `ic-${created.id}`,
+        { email: state.email, phone: state.fromPhone },
+      );
+
       // 2. Ask the server for a Cashfree payment session.
       const orderRes = await fetch('/api/cashfree/order', {
         method: 'POST',
@@ -174,6 +185,15 @@ export function CreationFlow({
       }
 
       if (PAID_STATES.has(finalStatus)) {
+        // Meta: Purchase. Same event_id (`purchase-<orderId>`) is used
+        // by the Cashfree webhook's server-side CAPI send, so the two
+        // copies dedupe into one conversion.
+        trackMeta(
+          'Purchase',
+          { value: price, currency: 'INR' },
+          `purchase-${created.id}`,
+          { email: state.email, phone: state.fromPhone },
+        );
         setPaidOrder({ id: created.id, shortId: created.short_id });
         setStep(5);
       } else if (finalStatus === 'FAILED') {
