@@ -70,6 +70,12 @@ export async function sendCapiEvent(
   if (ev.userData.fbp) user.fbp = ev.userData.fbp;
   if (ev.userData.fbc) user.fbc = ev.userData.fbc;
 
+  // When META_CAPI_TEST_EVENT_CODE is set, events route to the Test
+  // Events tab in Events Manager instead of the live pipeline — used
+  // only to verify the integration. Leave the env var blank in normal
+  // operation / production.
+  const testCode = process.env.META_CAPI_TEST_EVENT_CODE;
+
   const payload = {
     data: [
       {
@@ -84,6 +90,7 @@ export async function sendCapiEvent(
         ...(ev.customData ? { custom_data: ev.customData } : {}),
       },
     ],
+    ...(testCode ? { test_event_code: testCode } : {}),
   };
 
   try {
