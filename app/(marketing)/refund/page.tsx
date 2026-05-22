@@ -38,8 +38,8 @@ export default function RefundPage() {
               <strong className="text-ink">Within 24 hours, link not shared.</strong> If you
               haven&apos;t yet sent the link to the recipient, we&apos;ll cancel and refund in
               full. Email{' '}
-              <a href="mailto:refunds@proposemagic.in" className="underline">
-                refunds@proposemagic.in
+              <a href="mailto:magic@supercx.co" className="underline">
+                magic@supercx.co
               </a>{' '}
               with your order ID.
             </li>
@@ -76,8 +76,8 @@ export default function RefundPage() {
           <ol className="list-decimal space-y-2 pl-5">
             <li>
               Email{' '}
-              <a href="mailto:refunds@proposemagic.in" className="underline">
-                refunds@proposemagic.in
+              <a href="mailto:magic@supercx.co" className="underline">
+                magic@supercx.co
               </a>{' '}
               from the address you used at checkout.
             </li>
@@ -115,12 +115,12 @@ export default function RefundPage() {
         <Section title="Questions">
           <p>
             Write to us at{' '}
-            <a href="mailto:refunds@proposemagic.in" className="underline">
-              refunds@proposemagic.in
+            <a href="mailto:magic@supercx.co" className="underline">
+              magic@supercx.co
             </a>{' '}
             or{' '}
-            <a href="mailto:hello@proposemagic.in" className="underline">
-              hello@proposemagic.in
+            <a href="mailto:magic@supercx.co" className="underline">
+              magic@supercx.co
             </a>
             . We&apos;re humans and we read every one.
           </p>

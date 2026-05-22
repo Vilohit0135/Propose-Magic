@@ -16,6 +16,7 @@ async function send(opts: {
   subject: string;
   html: string;
   text?: string;
+  replyTo?: string;
 }): Promise<SendResult> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return { ok: false, error: 'resend_not_configured' };
@@ -34,6 +35,9 @@ async function send(opts: {
         subject: opts.subject,
         html: opts.html,
         ...(opts.text ? { text: opts.text } : {}),
+        // reply_to lets the team hit "Reply" and reach the customer
+        // directly, even though the email was sent from our address.
+        ...(opts.replyTo ? { reply_to: opts.replyTo } : {}),
       }),
     });
     const data = (await resp.json()) as {

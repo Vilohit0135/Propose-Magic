@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ContactForm } from '@/components/site/contact-form';
 
 export const metadata = {
   title: 'Contact — ProposeMagic',
@@ -24,20 +25,26 @@ export default function ContactPage() {
           refund, an invitation to collaborate, a feature you wish we had —
           send it to{' '}
           <a
-            href="mailto:hello@proposemagic.in"
+            href="mailto:magic@supercx.co"
             className="font-semibold text-rose-deep hover:underline"
           >
-            hello@proposemagic.in
+            magic@supercx.co
           </a>
           . One inbox, one team, every message gets read. Support replies
           land within a day; refunds we process the same day.
         </p>
         <a
-          href="mailto:hello@proposemagic.in"
+          href="mailto:magic@supercx.co"
           className="mt-7 inline-flex items-center gap-2 rounded-full bg-rose-deep px-6 py-3 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(139,21,56,0.3)] hover:opacity-90"
         >
-          Email hello@proposemagic.in →
+          Email magic@supercx.co →
         </a>
+      </div>
+
+      {/* In-page form — same destination as the mailto above, for
+          visitors who'd rather not switch to their mail client. */}
+      <div className="mt-8">
+        <ContactForm />
       </div>
 
       <section className="mt-16 grid gap-6 md:grid-cols-3">
@@ -93,10 +100,10 @@ export default function ContactPage() {
               <strong className="text-ink">Page not generating?</strong> Don&apos;t worry —
               you won&apos;t be charged. Email{' '}
               <a
-                href="mailto:hello@proposemagic.in"
+                href="mailto:magic@supercx.co"
                 className="font-semibold text-rose-deep hover:underline"
               >
-                hello@proposemagic.in
+                magic@supercx.co
               </a>{' '}
               with your order ID and we&apos;ll process it the same day.
             </span>

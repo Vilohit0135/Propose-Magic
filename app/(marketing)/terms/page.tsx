@@ -67,8 +67,8 @@ export default function TermsPage() {
           <p>
             If content on a ProposeMagic, Powered by SuperCX Technologies Private Limited, page targets or harms the person it&apos;s addressed to,
             they can email{' '}
-            <a href="mailto:abuse@proposemagic.in" className="underline">
-              abuse@proposemagic.in
+            <a href="mailto:magic@supercx.co" className="underline">
+              magic@supercx.co
             </a>{' '}
             and we&apos;ll remove it. We also remove content that violates the agreements above.
           </p>
@@ -97,8 +97,8 @@ export default function TermsPage() {
 
         <Section title="Contact">
           <p>
-            <a href="mailto:hello@proposemagic.in" className="underline">
-              hello@proposemagic.in
+            <a href="mailto:magic@supercx.co" className="underline">
+              magic@supercx.co
             </a>
             {' · '}
             SuperCX Technologies Private Limited, Bangalore.

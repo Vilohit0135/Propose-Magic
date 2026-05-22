@@ -69,7 +69,7 @@ export default function AboutPage() {
           Create yours →
         </Link>
         <a
-          href="mailto:hello@proposemagic.in"
+          href="mailto:magic@supercx.co"
           className="rounded-full border border-ink/20 px-6 py-3 text-sm font-semibold text-ink hover:border-ink/40"
         >
           Say hi

@@ -34,7 +34,7 @@ export async function POST(req: Request) {
 
   const request = addRefundRequest({ name, email, order_short_id, reason });
 
-  // TODO(nodemailer): send refund notification to refunds@proposemagic.in and
+  // TODO(nodemailer): send refund notification to magic@supercx.co and
   // confirmation to {email}. For now we log; the request is stored for later.
   console.log('[refund] new request', {
     id: request.id,

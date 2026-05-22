@@ -53,10 +53,10 @@ const CATEGORIES: FaqCategory[] = [
             If the page fails to generate, we refund automatically — no
             ticket needed. Otherwise, reach out at{' '}
             <a
-              href="mailto:hello@proposemagic.in"
+              href="mailto:magic@supercx.co"
               className="font-semibold text-rose-deep hover:underline"
             >
-              hello@proposemagic.in
+              magic@supercx.co
             </a>{' '}
             and we&apos;ll work it out.
           </>
@@ -156,7 +156,7 @@ export default function FaqPage() {
         Five categories. Tap any question to expand. Didn&apos;t find
         yours?{' '}
         <a
-          href="mailto:hello@proposemagic.in"
+          href="mailto:magic@supercx.co"
           className="font-semibold text-rose-deep underline"
         >
           Email us.
@@ -229,10 +229,10 @@ export default function FaqPage() {
             Start one →
           </Link>
           <a
-            href="mailto:hello@proposemagic.in"
+            href="mailto:magic@supercx.co"
             className="rounded-full border border-rose/30 bg-white/70 px-6 py-3 text-sm font-semibold text-rose-deep hover:bg-white"
           >
-            Email hello@proposemagic.in
+            Email magic@supercx.co
           </a>
         </div>
       </div>

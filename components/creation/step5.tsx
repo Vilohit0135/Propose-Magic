@@ -366,8 +366,8 @@ function FailedScreen({ error, email }: { error: string | null; email: string })
       </div>
       <div style={{ fontSize: 13, color: '#888', marginTop: 8, maxWidth: 280, lineHeight: 1.55 }}>
         Your payment went through, but the page didn&apos;t generate. Email us at{' '}
-        <a href="mailto:founders@powersmy.biz" style={{ color: '#c9748a' }}>
-          founders@powersmy.biz
+        <a href="mailto:magic@supercx.co" style={{ color: '#c9748a' }}>
+          magic@supercx.co
         </a>{' '}
         with your email <strong>{email}</strong> and we&apos;ll fix it within hours.
       </div>

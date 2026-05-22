@@ -27,6 +27,16 @@ export default function RootLayout({
         <link rel="stylesheet" href={fontsHref} />
       </head>
       <body>{children}</body>
+      {/* SuperCX support chatbot — temporarily disabled. The widget
+          opened but wouldn't close on the X; pending diagnosis of
+          whether it's a z-index conflict on our side or a widget bug.
+          To re-enable: add `import Script from "next/script";` at the
+          top, then uncomment the <Script> tag below.
+          <Script
+            src="https://app.supercx.co/api/widget/cmpgj21vk001koe015gr5vi5e.js"
+            strategy="lazyOnload"
+          />
+      */}
     </html>
   );
 }

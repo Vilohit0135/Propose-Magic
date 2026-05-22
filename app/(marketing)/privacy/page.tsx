@@ -49,8 +49,8 @@ export default function PrivacyPage() {
             The generated page is kept indefinitely so the link never breaks. Personal data in
             our database (names, email, story) is kept as long as the page exists. Request
             deletion any time —{' '}
-            <a href="mailto:hello@proposemagic.in" className="underline">
-              hello@proposemagic.in
+            <a href="mailto:magic@supercx.co" className="underline">
+              magic@supercx.co
             </a>
             .
           </p>
@@ -73,8 +73,8 @@ export default function PrivacyPage() {
           </ul>
           <p className="mt-3">
             Reach us at{' '}
-            <a href="mailto:hello@proposemagic.in" className="underline">
-              hello@proposemagic.in
+            <a href="mailto:magic@supercx.co" className="underline">
+              magic@supercx.co
             </a>{' '}
             and we&apos;ll respond within a week.
           </p>
